@@ -1,0 +1,17 @@
+﻿{
+  "category": "AssetStore/Unity",
+  "description": "Allow2 is cool.",
+  "gitHead": "0d2114387a99011be685886f8ea902242e323e70",
+  "keywords": [
+    "allow2",
+    "unity"
+  ],
+  "name": "com.allow2.allow2",
+  "repoPackagePath": "build/install/com.allow2.ads",
+  "repository": {
+    "type": "git",
+    "url": "ssh://git@github.com/Unity-Technologies/com.unity.ads.git"
+  },
+  "unity": "2017.4",
+  "version": "1.0.0"
+}

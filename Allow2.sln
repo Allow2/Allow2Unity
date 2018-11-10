@@ -1,0 +1,22 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Allow2", "Allow2\Allow2.csproj", "{FFE961F4-4FDE-4736-A89D-721EB5C11A97}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{AF0C5566-7FFC-4BDE-A78C-55694F732A0F}"
+	ProjectSection(SolutionItems) = preProject
+		LICENSE = LICENSE
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FFE961F4-4FDE-4736-A89D-721EB5C11A97}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FFE961F4-4FDE-4736-A89D-721EB5C11A97}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FFE961F4-4FDE-4736-A89D-721EB5C11A97}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FFE961F4-4FDE-4736-A89D-721EB5C11A97}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
