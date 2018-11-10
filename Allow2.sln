@@ -6,6 +6,8 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{AF0C5566-7FFC-4BDE-A78C-55694F732A0F}"
 	ProjectSection(SolutionItems) = preProject
 		LICENSE = LICENSE
+		package.json = package.json
+		package.sh = package.sh
 	EndProjectSection
 EndProject
 Global
