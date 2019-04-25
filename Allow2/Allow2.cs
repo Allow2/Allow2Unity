@@ -9,6 +9,7 @@
 //
 
 using Application;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -21,7 +22,7 @@ namespace Allow2
     public static class Allow2
     {
 
-        public static string deviceToken = "Not Set";
+        public static string deviceToken = "Not Set";    // ie: "346-34269hcubi-187gigi8g-14i3ugkug",
         public static EnvType env = EnvType.Production;
 
         //
@@ -62,56 +63,58 @@ namespace Allow2
             }
         }
 
-        //public static void Pair(string user,           // ie: "fred@gmail.com",
-        //                 string pass,           // ie: "my super secret password",
-        //                 string deviceToken,    // ie: "346-34269hcubi-187gigi8g-14i3ugkug",
-        //                 string deviceName      // ie: "Fred's iPhone"
-        //                ) {
-        //    WWWForm form = new WWWForm();
-        //    form.AddField("user", user);
-        //    form.AddField("pass", pass);
-        //    form.AddField("deviceToken", deviceToken);
-        //    form.AddField("name", deviceName);
+        public static IEnumerator Pair(string user,           // ie: "fred@gmail.com",
+                         string pass,           // ie: "my super secret password",
+                         string deviceName      // ie: "Fred's iPhone"
+                        ) {
+            WWWForm form = new WWWForm();
+            form.AddField("user", user);
+            form.AddField("pass", pass);
+            form.AddField("deviceToken", deviceToken);
+            form.AddField("name", deviceName);
 
-        //    using (UnityWebRequest www = UnityWebRequest.Post(apiUrl + "/api/pairDevice", form))
-        //    {
-        //        yield return www.SendWebRequest();
+            Debug.Log(apiUrl + "/api/pairDevice");
+            Debug.Log(form);
 
-        //        if (www.isNetworkError || www.isHttpError)
-        //        {
-        //            Debug.Log(www.error);
-        //        }
-        //        else
-        //        {
-        //            Debug.Log(www.downloadHandler.text);
-        //        }
-        //    }
-        //}
+            using (UnityWebRequest www = UnityWebRequest.Post(apiUrl + "/api/pairDevice", form))
+            {
+                yield return www.SendWebRequest();
 
-        //public static void Check(int userId,
-        //                  string pairToken,     // ie: "98hbieg87-ilulieugil-dilufkucy"
-        //                  string deviceToken,   // ie: "iug893-kjg-fiug23"
-        //                  string timezone,      // ie: "Australia/Brisbane"
-        //                  int childId,
-        //                  int[] activities,
-        //                  bool log = false,
-        //                  bool staging = false  // INTERNAL USE ONLY!
-        //                 ) {
-        //    UnityWebRequest www = UnityWebRequest.Get("http://www.my-server.com");
-        //    yield return www.SendWebRequest();
+                if (www.isNetworkError || www.isHttpError)
+                {
+                    Debug.Log(www.error);
+                }
+                else
+                {
+                    Debug.Log(www.downloadHandler.text);
+                }
+            }
+        }
 
-        //    if (www.isNetworkError || www.isHttpError)
-        //    {
-        //        Debug.Log(www.error);
-        //    }
-        //    else
-        //    {
-        //        // Show results as text
-        //        Debug.Log(www.downloadHandler.text);
+        public static IEnumerator Check(int userId,
+                          string pairToken,     // ie: "98hbieg87-ilulieugil-dilufkucy"
+                          string deviceToken,   // ie: "iug893-kjg-fiug23"
+                          string timezone,      // ie: "Australia/Brisbane"
+                          int childId,
+                          int[] activities,
+                          bool log = false,
+                          bool staging = false  // INTERNAL USE ONLY!
+                         ) {
+            UnityWebRequest www = UnityWebRequest.Get("http://www.my-server.com");
+            yield return www.SendWebRequest();
 
-        //        // Or retrieve results as binary data
-        //        byte[] results = www.downloadHandler.data;
-        //    }
-        //}
+            if (www.isNetworkError || www.isHttpError)
+            {
+                Debug.Log(www.error);
+            }
+            else
+            {
+                // Show results as text
+                Debug.Log(www.downloadHandler.text);
+
+                // Or retrieve results as binary data
+                byte[] results = www.downloadHandler.data;
+            }
+        }
     }
 }
