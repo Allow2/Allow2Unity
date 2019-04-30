@@ -21,4 +21,15 @@ namespace Application
         Social = 9,
         PhoneTime = 10
     }
+
+    public static class Allow2Error
+    {
+        public const string NotPaired = "NotPaired";
+        public const string AlreadyPaired = "AlreadyPaired";
+        public const string MissingChildId = "MissingChildId";
+        public const string NotAuthorised = "NotAuthorised";
+        public const string InvalidResponse = "InvalidResponse";
+    }
+}
+
 }

@@ -22,8 +22,15 @@ namespace Allow2
     public static class Allow2
     {
 
-        public static string deviceToken = "Not Set";    // ie: "346-34269hcubi-187gigi8g-14i3ugkug",
+        public static string deviceToken = "Not Set";    // ie: "iug893-kjg-fiug23" - not persisted: always set this on start
         public static EnvType env = EnvType.Production;
+
+        //
+        // relevant persistence items
+        //
+        static int userId;          // ie: 27634
+        static string pairToken;    // ie: "98hbieg87-ilulieugil-dilufkucy"
+        static string timezone;     // ie: "Australia/Brisbane"
 
         //
         // cannot instantiate this class
@@ -63,10 +70,23 @@ namespace Allow2
             }
         }
 
-        public static IEnumerator Pair(string user,           // ie: "fred@gmail.com",
-                         string pass,           // ie: "my super secret password",
-                         string deviceName      // ie: "Fred's iPhone"
-                        ) {
+        private static void persist() {
+            // todo: write to protected namespace storage?
+        }
+
+        public delegate void resultClosure(string err, Allow2CheckResult result);
+
+        //void Awake()
+        //{
+        //    DontDestroyOnLoad(this);
+        //}
+
+        public static IEnumerator Pair(string user, // ie: "fred@gmail.com",
+                         string pass,               // ie: "my super secret password",
+                         string deviceName,          // ie: "Fred's iPhone"
+                         resultClosure callback
+                        )
+        {
             WWWForm form = new WWWForm();
             form.AddField("user", user);
             form.AddField("pass", pass);
@@ -74,7 +94,6 @@ namespace Allow2
             form.AddField("name", deviceName);
 
             Debug.Log(apiUrl + "/api/pairDevice");
-            Debug.Log(form);
 
             using (UnityWebRequest www = UnityWebRequest.Post(apiUrl + "/api/pairDevice", form))
             {
@@ -83,37 +102,78 @@ namespace Allow2
                 if (www.isNetworkError || www.isHttpError)
                 {
                     Debug.Log(www.error);
+                    callback(www.error, null);
                 }
                 else
                 {
                     Debug.Log(www.downloadHandler.text);
+                    var response = Allow2_SimpleJSON.JSON.Parse(www.downloadHandler.text);
+                    // extract
+
+                    // persist
+
+                    // return
+                    callback(null, null);
                 }
             }
         }
 
-        public static IEnumerator Check(int userId,
-                          string pairToken,     // ie: "98hbieg87-ilulieugil-dilufkucy"
-                          string deviceToken,   // ie: "iug893-kjg-fiug23"
-                          string timezone,      // ie: "Australia/Brisbane"
-                          int childId,
+        public static IEnumerator Check(int childId,
                           int[] activities,
-                          bool log = false,
-                          bool staging = false  // INTERNAL USE ONLY!
-                         ) {
+                          resultClosure callback,
+                          bool log = false
+                         )
+        {
             UnityWebRequest www = UnityWebRequest.Get("http://www.my-server.com");
             yield return www.SendWebRequest();
 
             if (www.isNetworkError || www.isHttpError)
             {
                 Debug.Log(www.error);
+                callback(www.error, null);
             }
             else
             {
-                // Show results as text
                 Debug.Log(www.downloadHandler.text);
+                var json = Allow2_SimpleJSON.JSON.Parse(www.downloadHandler.text);
 
-                // Or retrieve results as binary data
-                byte[] results = www.downloadHandler.data;
+                if ((json["error"] == "invalid pairId") ||
+                    (json["error"] == "invalid pairToken"))
+                {
+                    // todo: || (response?.statusCode == 401)  {
+                    // special case, no longer controlled
+                    userId = 0;
+                    pairToken = null;
+                    persist();
+                    //childId = 0;
+                    //_children = []
+                    //_dayTypes = []
+                    var failOpen = new Allow2CheckResult();
+                    failOpen.Add("subscription", new Allow2_SimpleJSON.JSONArray());
+                    failOpen.Add("allowed", true);
+                    failOpen.Add("activities", new Allow2_SimpleJSON.JSONArray());
+                    failOpen.Add("dayTypes", new Allow2_SimpleJSON.JSONArray());
+                    failOpen.Add("allDayTypes", new Allow2_SimpleJSON.JSONArray());
+                    failOpen.Add("children", new Allow2_SimpleJSON.JSONArray());
+                    callback(null, failOpen);
+                    yield break;
+                }
+
+                if (json["allowed"] == null) {
+                    callback(Allow2Error.InvalidResponse, null);
+                    yield break;
+                }
+
+                var response = new Allow2CheckResult();
+                response.Add("activities", json["activities"]);
+                response.Add("subscription", json["subscription"]);
+                response.Add("dayTypes", json["dayTypes"]);
+                response.Add("children", json["children"]);
+                var _dayTypes = json["allDayTypes"];
+                response.Add("allDayTypes", _dayTypes);
+                var _children = json["allDayTypes"];
+                response.Add("children", _children);
+                callback(null, response);
             }
         }
     }
