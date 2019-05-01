@@ -21,8 +21,8 @@ namespace Allow2
     /// </summary>
     public static class Allow2
     {
-
-        public static string deviceToken = "Not Set";    // ie: "iug893-kjg-fiug23" - not persisted: always set this on start
+        static string uuid;
+        static string _deviceToken = "Not Set";    // ie: "iug893-kjg-fiug23" - not persisted: always set this on start
         public static EnvType env = EnvType.Production;
 
         //
@@ -30,7 +30,7 @@ namespace Allow2
         //
         static int userId;          // ie: 27634
         static string pairToken;    // ie: "98hbieg87-ilulieugil-dilufkucy"
-        static string timezone;     // ie: "Australia/Brisbane"
+        static string _timezone;     // ie: "Australia/Brisbane"
 
         //
         // cannot instantiate this class
@@ -70,11 +70,83 @@ namespace Allow2
             }
         }
 
+        public static string timezone
+        {
+            get
+            {
+                return _timezone;
+            }
+            set
+            {
+                _timezone = value;
+                PlayerPrefs.SetString("timezone", _timezone);
+            }
+        }
+
+        public static string deviceToken
+        {
+            get
+            {
+                return _deviceToken;
+            }
+            set
+            {
+                _deviceToken = value;
+                PlayerPrefs.SetString("deviceToken", _deviceToken);
+                if ((userId < 1) || (pairToken == null)) {
+                    // todo: start a regular timer to keep trying to call home on startup until we confirm we are NOT paired.
+                    CheckForBrokenPairing();
+                }
+            }
+        }
+
         private static void persist() {
             // todo: write to protected namespace storage?
+            PlayerPrefs.SetInt("userId", userId);
         }
 
         public delegate void resultClosure(string err, Allow2CheckResult result);
+
+        static Allow2()
+        {
+            uuid = SystemInfo.deviceUniqueIdentifier;
+            if (uuid == SystemInfo.unsupportedIdentifier) {
+                // cannot use on this platform, kludge is to generate and store one, use auditing on the server side to detect disconnection
+                uuid = PlayerPrefs.GetString("uuid");
+                if (uuid == null) {
+
+                    PlayerPrefs.SetString("uuid", uuid);
+                }
+            }
+            userId = PlayerPrefs.GetInt("userId");
+            pairToken = PlayerPrefs.GetString("pairToken");
+            timezone = PlayerPrefs.GetString("timezone");
+        }
+
+        static IEnumerator CheckForBrokenPairing()
+        {
+            // here we just ask the question, was this unique ID paired and somehow it lost it's pairing?
+            WWWForm form = new WWWForm();
+            form.AddField("uuid", uuid);
+            form.AddField("deviceToken", _deviceToken);
+
+            using (UnityWebRequest www = UnityWebRequest.Post(apiUrl + "/api/isDevicePaired", form))
+            {
+                yield return www.SendWebRequest();
+
+                // we actually only need to check for a 200 response to know the server is informed and it's been checked.
+                if (www.isNetworkError || www.isHttpError)
+                {
+                    Debug.Log(www.error);
+                }
+                else
+                {
+                    Debug.Log(www.downloadHandler.text);
+                    var response = Allow2_SimpleJSON.JSON.Parse(www.downloadHandler.text);
+                    // extract
+                }
+            }
+        }
 
         //void Awake()
         //{
@@ -90,7 +162,7 @@ namespace Allow2
             WWWForm form = new WWWForm();
             form.AddField("user", user);
             form.AddField("pass", pass);
-            form.AddField("deviceToken", deviceToken);
+            form.AddField("deviceToken", _deviceToken);
             form.AddField("name", deviceName);
 
             Debug.Log(apiUrl + "/api/pairDevice");
@@ -110,12 +182,20 @@ namespace Allow2
                     var response = Allow2_SimpleJSON.JSON.Parse(www.downloadHandler.text);
                     // extract
 
-                    // persist
+                    persist();
 
                     // return
                     callback(null, null);
                 }
             }
+        }
+
+        public static string getQR()
+        {
+            return "https://api.allow2.com/genqr/" +
+               WWW.EscapeURL(_deviceToken) + "/" +
+                  WWW.EscapeURL(uuid) + "/" +
+                  WWW.EscapeURL(name);
         }
 
         public static IEnumerator Check(int childId,
@@ -124,7 +204,18 @@ namespace Allow2
                           bool log = false
                          )
         {
-            UnityWebRequest www = UnityWebRequest.Get("http://www.my-server.com");
+            if ((userId < 1) || (pairToken == null)) {
+                callback(Allow2Error.NotPaired, null);
+                yield break;
+            }
+
+            WWWForm form = new WWWForm();
+            form.AddField("user", user);
+            form.AddField("pass", pass);
+            form.AddField("deviceToken", _deviceToken);
+            form.AddField("name", deviceName);
+
+            UnityWebRequest www = UnityWebRequest.Get(apiUrl + "/api/pairDevice");
             yield return www.SendWebRequest();
 
             if (www.isNetworkError || www.isHttpError)
