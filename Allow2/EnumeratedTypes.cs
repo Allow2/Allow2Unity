@@ -1,10 +1,24 @@
-﻿using System;
-namespace Application
+﻿//
+//  Allow2Unity
+//  EnumeratedTypes.cs
+//
+//  Created by Andrew Longhorn in Jan 2019.
+//  Copyright © 2019 Allow2 Pty Ltd. All rights reserved.
+//
+// LICENSE:
+//  See LICENSE file in root directory
+//
+
+namespace Allow2
 {
     /// <summary>
     /// Environment: Use Production ONLY (staging is for internal testing).
     /// </summary>
-    public enum EnvType { Production, /*Sandbox,*/ Staging }
+    public enum EnvType {
+        Production,
+        // Sandbox,
+        Staging
+    }
 
     /// <summary>
     /// Activities: These are the current activities for Allow2.
@@ -30,6 +44,5 @@ namespace Application
         public const string NotAuthorised = "NotAuthorised";
         public const string InvalidResponse = "InvalidResponse";
     }
-}
 
 }
