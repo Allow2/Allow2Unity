@@ -1,9 +1,24 @@
 ﻿{
   "category": "AssetStore/Unity",
-  "description": "Allow2 is cool.",
+  "description": "Allow2 Parental Freedom.",
   "gitHead": "0d2114387a99011be685886f8ea902242e323e70",
   "keywords": [
     "allow2",
+    "child",
+    "children",
+    "control",
+    "family",
+    "freedom",
+    "gaming",
+    "limit",
+    "limits",
+    "parental",
+    "parental-control",
+    "quota",
+    "social",
+    "social-network",
+    "time",
+    "time-limit",
     "unity"
   ],
   "name": "com.allow2.allow2",
@@ -13,5 +28,5 @@
     "url": "ssh://git@github.com/Unity-Technologies/com.unity.ads.git"
   },
   "unity": "2017.4",
-  "version": "1.0.0"
+  "version": "0.1.0"
 }
