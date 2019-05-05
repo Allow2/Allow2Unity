@@ -14,6 +14,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Networking;
+using Allow2_SimpleJSON;
 
 namespace Allow2
 {
@@ -31,9 +32,11 @@ namespace Allow2
         // relevant persistence items
         //
         static int userId;          // ie: 27634
-        static int _childId;        // ie: 34
         static string pairToken;    // ie: "98hbieg87-ilulieugil-dilufkucy"
         static string _timezone;    // ie: "Australia/Brisbane"
+        static Dictionary<int, string> _children = new Dictionary<int, string>();
+
+        public static int childId;  // ie: 34
 
         public static string ApiUrl
         {
@@ -48,6 +51,14 @@ namespace Allow2
                     default:
                         return "https://api.allow2.com";
                 }
+            }
+        }
+
+        public static Dictionary<int, string> Children
+        {
+            get
+            {
+                return _children;
             }
         }
 
@@ -100,11 +111,11 @@ namespace Allow2
             {
                 _deviceToken = value;
                 PlayerPrefs.SetString("deviceToken", _deviceToken);
-                if (!IsPaired)
-                {
+                //if (!IsPaired)
+               //{
                     // todo: start a regular timer to keep trying to call home on startup until we confirm we are NOT paired.
                     CheckForBrokenPairing();
-                }
+                //}
             }
         }
 
@@ -118,6 +129,7 @@ namespace Allow2
         private static Dictionary<string, Allow2CheckResult> resultCache = new Dictionary<string, Allow2CheckResult>();
 
         public delegate void resultClosure(string err, Allow2CheckResult result);
+        public delegate void imageClosure(string err, Texture qrCode);
 
         static Allow2()
         {
@@ -172,6 +184,10 @@ namespace Allow2
                          resultClosure callback
                         )
         {
+            if (IsPaired) {
+                callback(Allow2Error.AlreadyPaired, null);
+                yield break;
+            }
             WWWForm form = new WWWForm();
             form.AddField("user", user);
             form.AddField("pass", pass);
@@ -185,31 +201,88 @@ namespace Allow2
             {
                 yield return www.SendWebRequest();
 
-                if (www.isNetworkError || www.isHttpError)
-                {
-                    Debug.Log(www.error.ToString());
-                    callback(www.error, null);
-                }
-                else
-                {
-                    Debug.Log(www.downloadHandler.text);
-                    var response = Allow2_SimpleJSON.JSON.Parse(www.downloadHandler.text);
-                    // extract
+                var response = JSONNode.Parse(www.downloadHandler.text);
 
-                    Persist();
-
-                    // return
-                    callback(null, null);
+                if (response == null)
+                {
+                    if (www.isNetworkError || www.isHttpError)
+                    {
+                        Debug.Log(www.error.ToString());
+                        callback(www.error, null);
+                    }
+                    yield break;
                 }
+
+                //{
+                //    "status":"success",
+                //    "pairId":21105,
+                //    "token":"8314c722-36fe-4256-81f4-8cce6e4da32d"
+                //    "name":"Unity Test"
+                //    "userId":6
+                //    "children": [
+                //        {"id":68,"name":"Cody"},
+                //        {"id":69,"name":"Mikayla"},
+                //        {"id":21423,"name":"Mary"}
+                //    ]
+                //}
+
+                Debug.Log(www.downloadHandler.text);
+                var json = Allow2_SimpleJSON.JSON.Parse(www.downloadHandler.text);
+
+                if (json["status"] != "success")
+                {
+                    callback(Allow2Error.InvalidResponse, null);
+                    yield break;
+                }
+
+                userId = json["userId"];
+                pairToken = json["token"];
+                _children = ParseChildren(json["children"]);
+
+                Persist();
+
+                // return
+                callback(null, null);
             }
         }
 
-        public static string GetQR(string name)
+        public static IEnumerator GetQR(string name,
+                                       imageClosure callback)
         {
-            return ApiUrl + "/genqr/" +
+            string qrURL = ApiUrl + "/genqr/" +
                WWW.EscapeURL(_deviceToken) + "/" +
                   WWW.EscapeURL(uuid) + "/" +
                   WWW.EscapeURL(name);
+            UnityWebRequest www = UnityWebRequestTexture.GetTexture(qrURL);
+            yield return www.SendWebRequest();
+
+            if (www.isNetworkError || www.isHttpError)
+            {
+                Debug.Log(www.error);
+                callback(www.error, null);
+                yield break;
+            }
+            Texture qrCode = ((DownloadHandlerTexture)www.downloadHandler).texture;
+            callback(null, qrCode);
+        }
+
+        //public static IEnumerator Check(int[] activities,
+        //                  resultClosure callback,
+        //                  bool log = false
+        //                 )
+        //{
+        //    return Check(_child, activities,
+        //                  resultClosure callback,
+        //                  bool log = false
+        //                 )
+        //}
+
+        private static Dictionary<int, string> ParseChildren(JSONNode json) {
+            Dictionary<int, string> children = new Dictionary<int, string>();
+            foreach(JSONNode child in json) {
+                children[child["id"]] = child["name"];
+            }
+            return children;
         }
 
         public static IEnumerator Check(int childId,    // childId == 0 ? Get Updated Child List and confirm Pairing
@@ -223,6 +296,10 @@ namespace Allow2
                 callback(Allow2Error.NotPaired, null);
                 yield break;
             }
+
+            Debug.Log(userId);
+            Debug.Log(pairToken);
+            Debug.Log(_deviceToken);
 
             WWWForm form = new WWWForm();
             form.AddField("userId", userId);
@@ -251,61 +328,84 @@ namespace Allow2
                 resultCache.Remove(key);
             }
 
-            UnityWebRequest www = UnityWebRequest.Get(ApiUrl + "/api/pairDevice");
+            UnityWebRequest www = UnityWebRequest.Get(ServiceUrl + "/serviceapi/check");
             yield return www.SendWebRequest();
+
+            Debug.Log(www.downloadHandler.text);
+            var json = Allow2_SimpleJSON.JSON.Parse(www.downloadHandler.text);
+
+            if ((www.responseCode == 401) ||
+                (www.responseCode == 404) ||
+                ((json["status"] == "error") &&
+                 ((json["message"] == "Invalid user.") ||
+                  (json["message"] == "invalid pairToken"))))
+            {
+                // special case, no longer controlled
+                Debug.Log("No Longer Paired");
+                userId = 0;
+                pairToken = null;
+                Persist();
+                //childId = 0;
+                //_children = []
+                //_dayTypes = []
+                var failOpen = new Allow2CheckResult();
+                failOpen.Add("subscription", new Allow2_SimpleJSON.JSONArray());
+                failOpen.Add("allowed", true);
+                failOpen.Add("activities", new Allow2_SimpleJSON.JSONArray());
+                failOpen.Add("dayTypes", new Allow2_SimpleJSON.JSONArray());
+                failOpen.Add("allDayTypes", new Allow2_SimpleJSON.JSONArray());
+                failOpen.Add("children", new Allow2_SimpleJSON.JSONArray());
+                callback(null, failOpen);
+                yield break;
+            }
 
             if (www.isNetworkError || www.isHttpError)
             {
                 Debug.Log(www.error);
                 callback(www.error, null);
+                yield break;
             }
-            else
+
+            if (json["allowed"] == null)
             {
-                Debug.Log(www.downloadHandler.text);
-                var json = Allow2_SimpleJSON.JSON.Parse(www.downloadHandler.text);
-
-                if ((json["error"] == "invalid pairId") ||
-                    (json["error"] == "invalid pairToken"))
-                {
-                    // todo: || (response?.statusCode == 401)  {
-                    // special case, no longer controlled
-                    userId = 0;
-                    pairToken = null;
-                    Persist();
-                    //childId = 0;
-                    //_children = []
-                    //_dayTypes = []
-                    var failOpen = new Allow2CheckResult();
-                    failOpen.Add("subscription", new Allow2_SimpleJSON.JSONArray());
-                    failOpen.Add("allowed", true);
-                    failOpen.Add("activities", new Allow2_SimpleJSON.JSONArray());
-                    failOpen.Add("dayTypes", new Allow2_SimpleJSON.JSONArray());
-                    failOpen.Add("allDayTypes", new Allow2_SimpleJSON.JSONArray());
-                    failOpen.Add("children", new Allow2_SimpleJSON.JSONArray());
-                    callback(null, failOpen);
-                    yield break;
-                }
-
-                if (json["allowed"] == null)
-                {
-                    callback(Allow2Error.InvalidResponse, null);
-                    yield break;
-                }
-
-                var response = new Allow2CheckResult();
-                response.Add("activities", json["activities"]);
-                response.Add("subscription", json["subscription"]);
-                response.Add("dayTypes", json["dayTypes"]);
-                response.Add("children", json["children"]);
-                var _dayTypes = json["allDayTypes"];
-                response.Add("allDayTypes", _dayTypes);
-                var _children = json["allDayTypes"];
-                response.Add("children", _children);
-
-                // cache the response
-                resultCache[key] = response;
-                callback(null, response);
+                callback(Allow2Error.InvalidResponse, null);
+                yield break;
             }
+
+            var response = new Allow2CheckResult();
+            response.Add("activities", json["activities"]);
+            response.Add("subscription", json["subscription"]);
+            response.Add("dayTypes", json["dayTypes"]);
+            response.Add("children", json["children"]);
+            var _dayTypes = json["allDayTypes"];
+            response.Add("allDayTypes", _dayTypes);
+            var oldChildIds = _children.Keys;
+            var children = json["allDayTypes"];
+            _children = Children;
+            response.Add("children", children);
+
+            if (oldChildIds != _children.Keys)
+            {
+                Persist(); // only persist if the children change, this won't happen often.
+            }
+
+            // cache the response
+            resultCache[key] = response;
+            callback(null, response);
+        }
+
+        public static IEnumerator StartChecking(int childId,
+                          int[] activities,
+                          resultClosure callback,
+                          bool log = false
+                         )
+        {
+            return Check(childId, activities, callback, log);
+        }
+
+        public static IEnumerator StopChecking()
+        {
+            return null;
         }
 
         public static IEnumerator Request(
@@ -319,7 +419,7 @@ namespace Allow2
                 callback(Allow2Error.NotPaired, null);
                 yield break;
             }
-            if (_childId < 1)
+            if (childId < 1)
             {
                 callback(Allow2Error.MissingChildId, null);
                 yield break;
@@ -329,7 +429,7 @@ namespace Allow2
             form.AddField("userId", userId);
             form.AddField("pairToken", pairToken);
             form.AddField("deviceToken", _deviceToken);
-            form.AddField("childId", _childId);
+            form.AddField("childId", childId);
             //form.AddField("lift", lift.asJson);
             //if (dayTypeId != nil) {
             //    body["dayType"] = JSON(dayTypeId!)

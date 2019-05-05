@@ -17,10 +17,12 @@ namespace Allow2
         //public Allow2CheckResult()
         //{
         //}
+        private static readonly DateTime Epoch = new DateTime(1970, 1, 1, 0, 0, 0, 0, System.DateTimeKind.Utc); 
 
         public DateTime Expires {
             get {
-                return new DateTime();
+                int unixTimeStamp = this["activities"]["0"]["expires"];
+                return Epoch.AddSeconds(unixTimeStamp).ToUniversalTime(); // nineteen70.AddSeconds(unixTimeStamp).ToLocalTime();
             }
         }
     }
