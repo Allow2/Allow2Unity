@@ -11,7 +11,7 @@
 
 namespace Allow2
 {
-    public class Allow2Child   // shortcut implementation for now
+    public class Allow2Child
     {
         public int Id { get; private set; }
         public string Name { get; private set; }
