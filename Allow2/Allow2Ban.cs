@@ -22,7 +22,7 @@ namespace Allow2
         public int Duration { get; private set; }
         public bool Selected { get; private set; }
 
-        Allow2Ban(string name, JSONNode val)
+        public Allow2Ban(string name, JSONNode val)
         {
             Id = val["id"].AsInt;
             Title = name;

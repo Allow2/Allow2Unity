@@ -171,7 +171,7 @@ namespace Allow2
                             JSONArray items = activity["bans"]["bans"].AsArray;
                             foreach (JSONNode item in items)
                             {
-                                //bans.Add(new Allow2Ban(name, item));
+                                bans.Add(new Allow2Ban(name, item));
                             }
                         }
                         else
@@ -181,6 +181,37 @@ namespace Allow2
                     }
                 }
                 return bans.ToArray();
+            }
+        }
+
+        public Allow2Day Today
+        {
+            get
+            {
+                if (this["dayTypes"] == null) { return null; }
+                return Allow2Day.DayOrNull(this["dayTypes"]["today"]);
+            }
+        }
+
+        public Allow2Day Tomorrow
+        {
+            get
+            {
+                if (this["dayTypes"] == null) { return null; }
+                return Allow2Day.DayOrNull(this["dayTypes"]["tomorrow"]);
+            }
+        }
+
+        public Allow2Day[] AllDayTypes
+        {
+            get
+            {
+                List<Allow2Day> dayTypes = new List<Allow2Day>();
+                foreach (JSONNode dayType in this["allDayTypes"])
+                {
+                    dayTypes.Add(new Allow2Day(dayType));
+                }
+                return dayTypes.ToArray();
             }
         }
     }

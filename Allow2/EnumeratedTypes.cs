@@ -43,6 +43,7 @@ namespace Allow2
         public const string MissingChildId = "MissingChildId";
         public const string NotAuthorised = "NotAuthorised";
         public const string InvalidResponse = "InvalidResponse";
+        public const string NoConnection = "NoConnection";
     }
 
 }

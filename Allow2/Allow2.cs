@@ -36,6 +36,12 @@ namespace Allow2
         static string pairToken;    // ie: "98hbieg87-ilulieugil-dilufkucy"
         static string _timezone;    // ie: "Australia/Brisbane"
         static Dictionary<int, string> _children = new Dictionary<int, string>();
+        static int _childId = 0;
+
+        //HashSet<string> checkers = new HashSet<string>();         // contains uuids for running autocheckers (abort if your uuid is missing)
+        static string checkerUuid = null;                           // uuid for the current checker
+        static IEnumerator checker = null;                          // the current autochecker
+        static string pollUuid = null;
 
         public static int childId;  // ie: 34
 
@@ -179,10 +185,19 @@ namespace Allow2
         }
 
         /*
-         * 
+         * Pairing
          * 
          */
-        public static IEnumerator Pair(string user, // ie: "fred@gmail.com",
+        public static void Pair(MonoBehaviour behavior, 
+                                string user, // ie: "fred@gmail.com",
+                                string pass,               // ie: "my super secret password",
+                                string deviceName,          // ie: "Fred's iPhone"
+                                resultClosure callback )
+        {
+            behavior.StartCoroutine(_Pair(user, pass, deviceName, callback));
+        }
+
+        static IEnumerator _Pair(string user, // ie: "fred@gmail.com",
                          string pass,               // ie: "my super secret password",
                          string deviceName,          // ie: "Fred's iPhone"
                          resultClosure callback
@@ -251,8 +266,11 @@ namespace Allow2
             }
         }
 
-        public static IEnumerator GetQR(string name,
-                                       imageClosure callback)
+        public static void GetQR(MonoBehaviour behavior, string name, imageClosure callback) {
+            behavior.StartCoroutine(_GetQR(name, callback));
+        }
+
+        static IEnumerator _GetQR(string name, imageClosure callback)
         {
             string qrURL = ApiUrl + "/genqr/" +
                WWW.EscapeURL(_deviceToken) + "/" +
@@ -292,11 +310,21 @@ namespace Allow2
             return children;
         }
 
-        public static IEnumerator Check(int childId,    // childId == 0 ? Get Updated Child List and confirm Pairing
-                          int[] activities,
-                          resultClosure callback,
-                          bool log = false
-                         )
+        public static void Check(MonoBehaviour behaviour,
+                                 int childId,    // childId == 0 ? Get Updated Child List and confirm Pairing
+                                 int[] activities,
+                                 resultClosure callback,
+                                 bool log = false
+                                )
+        {
+            behaviour.StartCoroutine(_Check(childId, activities, callback, log, null));
+        }
+
+        static IEnumerator _Check(string myUuid,
+                                  int childId,    // childId == 0 ? Get Updated Child List and confirm Pairing
+                                  int[] activities,
+                                  resultClosure callback,
+                                  bool log) // if set, then this is an autochecker and we drop it if we replace it. If null, it's adhoc, always return a value
         {
             if (!IsPaired)
             {
@@ -355,6 +383,11 @@ namespace Allow2
                 www.chunkedTransfer = false;
                 yield return www.SendWebRequest();
 
+                if ((myUuid != null) && (checkerUuid != myUuid)) {
+                    Debug.Log("drop response for check: " + myUuid);
+                    yield break;    // this check is aborted, just drop the response and don't return;
+                }
+
                 Debug.Log(www.downloadHandler.text);
                 var json = Allow2_SimpleJSON.JSON.Parse(www.downloadHandler.text);
 
@@ -403,8 +436,8 @@ namespace Allow2
                 var _dayTypes = json["allDayTypes"];
                 response.Add("allDayTypes", _dayTypes);
                 var oldChildIds = _children.Keys;
-                var children = json["allDayTypes"];
-                _children = Children;
+                var children = json["children"];
+                _children = ParseChildren(children);
                 response.Add("children", children);
 
                 if (oldChildIds != _children.Keys)
@@ -418,18 +451,43 @@ namespace Allow2
             }
         }
 
-        public static IEnumerator StartChecking(int childId,
-                          int[] activities,
-                          resultClosure callback,
-                          bool log = false
-                         )
+        private static IEnumerator CheckLoop(string myUuid,
+                                             int childId,
+                                             int[] activities,
+                                             resultClosure callback,
+                                             bool log = false)
         {
-            return Check(childId, activities, callback, log);
+            while (checkerUuid == myUuid) {
+                Debug.Log("check uuid: " + myUuid);
+                yield return _Check(myUuid, childId, activities, delegate (string err, Allow2CheckResult result) {
+                    if (!IsPaired && (checkerUuid != myUuid)) {
+                        checkerUuid = null; // stop the checker, we have been unpaired
+                    }
+                    callback(err, result);
+                }, log);
+                yield return new WaitForSeconds(3);
+            }
         }
 
-        public static IEnumerator StopChecking()
+        public static void StartChecking(MonoBehaviour behavior,
+                                         int childId,
+                                         int[] activities,
+                                         resultClosure callback,
+                                         bool log)
         {
-            return null;
+            // change the parameters
+            bool changed = (_childId != childId);
+            _childId = childId;
+            if (changed || (checkerUuid == null)) {
+                //switch checker
+                checkerUuid = System.Guid.NewGuid().ToString(); // this will abort the current checker and kill it.
+                /*checker = */ behavior.StartCoroutine(CheckLoop(checkerUuid, childId, activities, callback, log));
+            }
+        }
+
+        public static void StopChecking()
+        {
+            checkerUuid = null; // this will kill the running checker
         }
 
         public static IEnumerator Request(
@@ -460,7 +518,81 @@ namespace Allow2
             //    body["changeDayType"] = true
             //}
 
+        }
 
+        public static void StartPairing(MonoBehaviour behavior,
+                                        string deviceName,          // ie: "Fred's iPhone"
+                                        resultClosure callback)
+        {
+            //switch checker
+            pollUuid = System.Guid.NewGuid().ToString(); // this will abort the current poll and kill it.
+            behavior.StartCoroutine(PollLoop(pollUuid, deviceName, callback));
+        }
+
+        public static void StopPolling()
+        {
+            pollUuid = null; // this will kill the running checker
+        }
+
+        private static IEnumerator PollLoop(string myUuid, string deviceName, resultClosure callback)
+        {
+            while (pollUuid == myUuid)
+            {
+                Debug.Log("poll uuid: " + myUuid);
+                yield return _Poll(myUuid, deviceName, delegate (string err, Allow2CheckResult result) {
+                    if (IsPaired)
+                    {
+                        pollUuid = null; // stop the checker, we have been paired
+                    }
+                    callback(err, result);
+                });
+                yield return new WaitForSeconds(3);
+            }
+        }
+
+        static IEnumerator _Poll(string myUuid, string deviceName, resultClosure callback)
+        {
+            JSONNode body = new JSONObject();
+            body.Add("uuid", uuid);
+            body.Add("deviceToken", _deviceToken);
+            body.Add("deviceName", deviceName);
+            string bodyStr = body.ToString();
+
+            byte[] bytes = Encoding.UTF8.GetBytes(bodyStr);
+            using (UnityWebRequest www = new UnityWebRequest(ApiUrl + "/api/checkPairing"))
+            {
+                www.method = UnityWebRequest.kHttpVerbPOST;
+                www.uploadHandler = new UploadHandlerRaw(bytes);
+                www.downloadHandler = new DownloadHandlerBuffer();
+                www.uploadHandler.contentType = "application/json";
+                www.chunkedTransfer = false;
+                yield return www.SendWebRequest();
+
+                // anything other than a 200 response is a "try again" as far as we are concerned
+                if (www.responseCode != 200)
+                {
+                    callback(Allow2Error.NoConnection, null);   // let the caller know we are having problems
+                    yield break;
+                }
+
+                Debug.Log(www.downloadHandler.text);
+                var json = Allow2_SimpleJSON.JSON.Parse(www.downloadHandler.text);
+
+                string status = json["status"];
+
+                if (status != "success")
+                {
+                    callback(json["message"] ?? "Unknown Error", null);
+                    yield break;
+                }
+
+                pairToken = json["pairToken"];
+                userId = json["userId"];
+                childId = json["childId"];
+                _children = childId > 0 ? new Dictionary<int, string>() : ParseChildren(json["children"]);
+
+                callback(null, null);
+            }
         }
     }
 }
