@@ -41,7 +41,9 @@ namespace Allow2
         //HashSet<string> checkers = new HashSet<string>();         // contains uuids for running autocheckers (abort if your uuid is missing)
         static string checkerUuid = null;                           // uuid for the current checker
         static IEnumerator checker = null;                          // the current autochecker
-        static string pollUuid = null;
+        static Coroutine qrCall = null;
+        static DateTime qrDebounce = new DateTime(1970, 1, 1, 0, 0, 0, 0, System.DateTimeKind.Utc);
+        static string pairingUuid = null;
 
         public static int childId;  // ie: 34
 
@@ -266,22 +268,34 @@ namespace Allow2
             }
         }
 
+        const int QRDebounceDelay = 500;
+
         public static void GetQR(MonoBehaviour behavior, string name, imageClosure callback) {
-            behavior.StartCoroutine(_GetQR(name, callback));
+            DateTime now = new DateTime();
+            if ((qrCall != null) && (qrDebounce.CompareTo(now) > 0)) {
+                Debug.Log("debounce");
+                Coroutine oldCall = qrCall;
+                qrCall = null;
+                behavior.StopCoroutine(oldCall);
+            }
+            qrDebounce = now.AddMilliseconds(QRDebounceDelay);
+            qrCall = behavior.StartCoroutine(_GetQR(name, callback));
         }
 
         static IEnumerator _GetQR(string name, imageClosure callback)
         {
+            yield return new WaitForSeconds(QRDebounceDelay/1000);
             string qrURL = ApiUrl + "/genqr/" +
-               WWW.EscapeURL(_deviceToken) + "/" +
-                  WWW.EscapeURL(uuid) + "/" +
-                  WWW.EscapeURL(name);
+                UnityWebRequest.EscapeURL(_deviceToken) + "/" +
+                  UnityWebRequest.EscapeURL(uuid) + "/" +
+                  UnityWebRequest.EscapeURL(name);
             UnityWebRequest www = UnityWebRequestTexture.GetTexture(qrURL);
             yield return www.SendWebRequest();
 
             if (www.isNetworkError || www.isHttpError)
             {
                 Debug.Log(www.error);
+                Texture errorImage = Resources.Load("Allow2/QRError") as Texture2D;
                 callback(www.error, null);
                 yield break;
             }
@@ -317,7 +331,7 @@ namespace Allow2
                                  bool log = false
                                 )
         {
-            behaviour.StartCoroutine(_Check(childId, activities, callback, log, null));
+            behaviour.StartCoroutine(_Check(null, childId, activities, callback, log));
         }
 
         static IEnumerator _Check(string myUuid,
@@ -507,42 +521,59 @@ namespace Allow2
                 yield break;
             }
 
-            WWWForm form = new WWWForm();
-            form.AddField("userId", userId);
-            form.AddField("pairToken", pairToken);
-            form.AddField("deviceToken", _deviceToken);
-            form.AddField("childId", childId);
+            WWWForm body = new WWWForm();
+            body.AddField("userId", userId);
+            body.AddField("pairToken", pairToken);
+            body.AddField("deviceToken", _deviceToken);
+            body.AddField("childId", childId);
             //form.AddField("lift", lift.asJson);
             //if (dayTypeId != nil) {
             //    body["dayType"] = JSON(dayTypeId!)
             //    body["changeDayType"] = true
             //}
+            string bodyStr = body.ToString();
 
+            byte[] bytes = Encoding.UTF8.GetBytes(bodyStr);
+            using (UnityWebRequest www = new UnityWebRequest(ApiUrl + "/api/checkPairing"))
+            {
+                www.method = UnityWebRequest.kHttpVerbPOST;
+                www.uploadHandler = new UploadHandlerRaw(bytes);
+                www.downloadHandler = new DownloadHandlerBuffer();
+                www.uploadHandler.contentType = "application/json";
+                www.chunkedTransfer = false;
+                yield return www.SendWebRequest();
+
+                // anything other than a 200 response is a "try again" as far as we are concerned
+                if (www.responseCode != 200)
+                {
+                    callback(Allow2Error.NoConnection, null);   // let the caller know we are having problems
+                    yield break;
+                }
+
+            }
         }
 
-        public static void StartPairing(MonoBehaviour behavior,
-                                        string deviceName,          // ie: "Fred's iPhone"
-                                        resultClosure callback)
+        public static void StartPairing(MonoBehaviour behavior, resultClosure callback)
         {
             //switch checker
-            pollUuid = System.Guid.NewGuid().ToString(); // this will abort the current poll and kill it.
-            behavior.StartCoroutine(PollLoop(pollUuid, deviceName, callback));
+            pairingUuid = System.Guid.NewGuid().ToString(); // this will abort the current poll and kill it.
+            behavior.StartCoroutine(PairingLoop(pairingUuid, callback));
         }
 
-        public static void StopPolling()
+        public static void StopPairing()
         {
-            pollUuid = null; // this will kill the running checker
+            pairingUuid = null; // this will kill the running checker
         }
 
-        private static IEnumerator PollLoop(string myUuid, string deviceName, resultClosure callback)
+        private static IEnumerator PairingLoop(string myUuid, resultClosure callback)
         {
-            while (pollUuid == myUuid)
+            while (pairingUuid == myUuid)
             {
                 Debug.Log("poll uuid: " + myUuid);
-                yield return _Poll(myUuid, deviceName, delegate (string err, Allow2CheckResult result) {
+                yield return _PollPairing(myUuid, delegate (string err, Allow2CheckResult result) {
                     if (IsPaired)
                     {
-                        pollUuid = null; // stop the checker, we have been paired
+                        pairingUuid = null; // stop the checker, we have been paired
                     }
                     callback(err, result);
                 });
@@ -550,12 +581,11 @@ namespace Allow2
             }
         }
 
-        static IEnumerator _Poll(string myUuid, string deviceName, resultClosure callback)
+        static IEnumerator _PollPairing(string myUuid, resultClosure callback)
         {
             JSONNode body = new JSONObject();
             body.Add("uuid", uuid);
             body.Add("deviceToken", _deviceToken);
-            body.Add("deviceName", deviceName);
             string bodyStr = body.ToString();
 
             byte[] bytes = Encoding.UTF8.GetBytes(bodyStr);

@@ -23,7 +23,7 @@ namespace Allow2
     /// <summary>
     /// Activities: These are the current activities for Allow2.
     /// </summary>
-    public enum Activity {
+    public enum Activity: int {
         Internet = 1,
         Computer = 2,
         Gaming = 3,
