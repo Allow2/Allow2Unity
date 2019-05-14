@@ -42,9 +42,10 @@ namespace Allow2.Allow2Examples
             Debug.Log("Children: " + Allow2.Children);
 
             // and in the pairing interface, we need a QR code to make the process simple for our users
-            Allow2.GetQR(this, SystemInfo.deviceName, delegate (string err, Texture qrCode)
+            Allow2.GetQR(this, SystemInfo.deviceName, delegate (string err, Texture2D qrCode)
             {
                 Debug.Log("qrcode error: " + (err ?? "No Error") + " : " + (qrCode ? "yes" : "no"));
+                Debug.Log(qrImage.GetComponent<RawImage>());
                 qrImage.GetComponent<RawImage>().texture = qrCode;
             });
         }

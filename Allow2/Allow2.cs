@@ -41,7 +41,7 @@ namespace Allow2
         //HashSet<string> checkers = new HashSet<string>();         // contains uuids for running autocheckers (abort if your uuid is missing)
         static string checkerUuid = null;                           // uuid for the current checker
         static IEnumerator checker = null;                          // the current autochecker
-        static Coroutine qrCall = null;
+        static IEnumerator qrCall = null;
         static DateTime qrDebounce = new DateTime(1970, 1, 1, 0, 0, 0, 0, System.DateTimeKind.Utc);
         static string pairingUuid = null;
 
@@ -112,6 +112,13 @@ namespace Allow2
             }
         }
 
+        /// <summary>
+        /// Gets or sets the device token.
+        /// The device token is mandatory, this needs to be set before making any calls to the sdk/api.
+        /// Generate your device token for free at https://developer.allow2.com
+        /// Use it to manage your app/game/device, promote it on the Allow2 platform and track downloads and usage.
+        /// </summary>
+        /// <value>The device token.</value>
         public static string DeviceToken
         {
             get
@@ -140,8 +147,15 @@ namespace Allow2
         // no persistence here
         private static Dictionary<string, Allow2CheckResult> resultCache = new Dictionary<string, Allow2CheckResult>();
 
+        /// <summary>
+        /// A result closure provides the result from a call to the Allow2 platform.
+        /// </summary>
         public delegate void resultClosure(string err, Allow2CheckResult result);
-        public delegate void imageClosure(string err, Texture qrCode);
+
+        /// <summary>
+        /// An image closure provides the image returned by the Allow2 platform.
+        /// </summary>
+        public delegate void imageClosure(string err, Texture2D image);
 
         static Allow2()
         {
@@ -186,17 +200,21 @@ namespace Allow2
             }
         }
 
-        /*
-         * Pairing
-         * 
-         */
-        public static void Pair(MonoBehaviour behavior, 
+        /// <summary>
+        /// Pair your game/app/device to a parents Allow2 account.
+        /// </summary>
+        /// <param name="behaviour">Provide a (any) MonoBehaviour for the sdk to use to call the platform.</param>
+        /// <param name="user">The email address of the Allow2 account being paired.</param>
+        /// <param name="pass">The associated password for the Allow2 account being paired.</param>
+        /// <param name="deviceName">The name the user would like to use to identify this app/game/device.</param>
+        /// <param name="callback">Provides the image of the QR Code.</param>
+        public static void Pair(MonoBehaviour behaviour, 
                                 string user, // ie: "fred@gmail.com",
                                 string pass,               // ie: "my super secret password",
                                 string deviceName,          // ie: "Fred's iPhone"
-                                resultClosure callback )
+                                resultClosure callback)
         {
-            behavior.StartCoroutine(_Pair(user, pass, deviceName, callback));
+            behaviour.StartCoroutine(_Pair(user, pass, deviceName, callback));
         }
 
         static IEnumerator _Pair(string user, // ie: "fred@gmail.com",
@@ -270,37 +288,46 @@ namespace Allow2
 
         const int QRDebounceDelay = 500;
 
-        public static void GetQR(MonoBehaviour behavior, string name, imageClosure callback) {
-            DateTime now = new DateTime();
+        /// <summary>
+        /// Gets a new QR Code texture to show to the user to enable them to pair your game/app/device with Allow2.
+        /// Call this to get a new QR Code any time the user changes the name of the device.
+        /// Note this is debounced automatically, so just keep calling it immediately (even if the user is still typing).
+        /// </summary>
+        /// <param name="behaviour">Provide a (any) MonoBehaviour for the sdk to use to call the platform.</param>
+        /// <param name="deviceName">The name the user would like to use to identify this app/game/device.</param>
+        /// <param name="callback">Callback.</param>
+        public static void GetQR(MonoBehaviour behaviour, string deviceName, imageClosure callback) {
+            DateTime now = DateTime.Now;
             Debug.Log(qrDebounce.CompareTo(now));
             if ((qrCall != null) && (qrDebounce.CompareTo(now) > 0)) {
-                Debug.Log("debounce");
-                Coroutine oldCall = qrCall;
+                Debug.Log("debounce " + qrDebounce.ToShortTimeString() + " < " + now.ToShortTimeString());
+                IEnumerator oldCall = qrCall;
                 qrCall = null;
-                behavior.StopCoroutine(oldCall);
+                behaviour.StopCoroutine(oldCall);
             }
             qrDebounce = now.AddMilliseconds(QRDebounceDelay);
-            qrCall = behavior.StartCoroutine(_GetQR(name, callback));
+            qrCall = _GetQR(deviceName, callback);
+            behaviour.StartCoroutine(qrCall);
         }
 
-        static IEnumerator _GetQR(string name, imageClosure callback)
+        static IEnumerator _GetQR(string deviceName, imageClosure callback)
         {
             yield return new WaitForSeconds(QRDebounceDelay/1000);
             string qrURL = ApiUrl + "/genqr/" +
                 UnityWebRequest.EscapeURL(_deviceToken) + "/" +
                   UnityWebRequest.EscapeURL(uuid) + "/" +
-                  UnityWebRequest.EscapeURL(name);
+                  UnityWebRequest.EscapeURL(deviceName);
             UnityWebRequest www = UnityWebRequestTexture.GetTexture(qrURL);
             yield return www.SendWebRequest();
 
             if (www.isNetworkError || www.isHttpError)
             {
-                Debug.Log(www.error);
+                Debug.Log("QR LOAD ERROR: " + www.error);
                 Texture errorImage = Resources.Load("Allow2/QRError") as Texture2D;
                 callback(www.error, null);
                 yield break;
             }
-            Texture qrCode = ((DownloadHandlerTexture)www.downloadHandler).texture;
+            Texture2D qrCode = DownloadHandlerTexture.GetContent(www);
             callback(null, qrCode);
         }
 
@@ -325,8 +352,39 @@ namespace Allow2
             return children;
         }
 
+        /// <summary>
+        /// Check if the specified child can use the current activities and optionally log usage.
+        /// Note that if you specify log as true, usage will be recorded even if the child is technically not allowed to use one of the
+        /// <paramref name="activities"/>. This is to allow you the ability to be flexible in allowing usage, but should be used sparingly.
+        /// If you are, for instance, just checking if something CAN be done at this time, then make sure you supply false for the log parameter.
+        /// </summary>
+        /// <param name="behaviour">Provide a (any) MonoBehaviour for the sdk to use to call the platform.</param>
+        /// <param name="childId">Id of the child for which you wish to check (and possibly log) activities.</param>
+        /// <param name="activities">The activity ids to check.</param>
+        /// <param name="callback">Provides the result of the check.</param>
+        /// <param name="log">If set to <c>true</c>, then log the usage of these activities as well.</param>
         public static void Check(MonoBehaviour behaviour,
                                  int childId,    // childId == 0 ? Get Updated Child List and confirm Pairing
+                                 int[] activities,
+                                 resultClosure callback,
+                                 bool log = false
+                                )
+        {
+            behaviour.StartCoroutine(_Check(null, childId, activities, callback, log));
+        }
+
+        /// <summary>
+        /// Check if the specified child can use the current activities and optionally log usage.
+        /// You should ALWAYS log usage when the child is using the activities, otherwise their usage will not be debited from their quota.
+        /// Note that if you specify log as true, usage will be recorded even if the child is technically not allowed to use one of the
+        /// <paramref name="activities"/>. This is to allow you the ability to be flexible in allowing usage, but should be used sparingly.
+        /// If you are, for instance, just checking if something CAN be done at this time, then make sure you supply false for the log parameter.
+        /// </summary>
+        /// <param name="behaviour">Provide a (any) MonoBehaviour for the sdk to use to call the platform.</param>
+        /// <param name="activities">The activity ids to check.</param>
+        /// <param name="callback">Provides the result of the check.</param>
+        /// <param name="log">If set to <c>true</c>, then log the usage of these activities as well.</param>
+        public static void Check(MonoBehaviour behaviour,
                                  int[] activities,
                                  resultClosure callback,
                                  bool log = false
@@ -484,7 +542,21 @@ namespace Allow2
             }
         }
 
-        public static void StartChecking(MonoBehaviour behavior,
+        /// <summary>
+        /// Start checking (and optionally logging) the ability for the child to use the given activities.
+        /// This starts a process that regularly checks (and optionally logs) usage until stopped using Allow2.StopChecking.
+        /// You can call this repeatedly and change the child id at any time, but there will only ever be one process and
+        /// it will continue to use the last provided child id.
+        /// Note, that if the child is unable or disallowed to use any of the <paramref name="activities"/>, they will still be continually checked/logged until Allow2.StopChecking() is called.
+        /// This is to allow you to selectively allow the child to finish an activity, but will put them in negative credit (which will come off future usage).
+        /// You should ALWAYS log usage when the child is using the activities, otherwise their usage will not be debited from their quota.
+        /// </summary>
+        /// <param name="behaviour">Provide a (any) MonoBehaviour for the sdk to use to call the platform.</param>
+        /// <param name="childId">The child for which the activites are being checked (and optionally logged).</param>
+        /// <param name="activities">The activity ids to check.</param>
+        /// <param name="callback">Provides the result of the check.</param>
+        /// <param name="log">If set to <c>true</c>, then log the usage of these activities as well.</param>
+        public static void StartChecking(MonoBehaviour behaviour,
                                          int childId,
                                          int[] activities,
                                          resultClosure callback,
@@ -496,20 +568,62 @@ namespace Allow2
             if (changed || (checkerUuid == null)) {
                 //switch checker
                 checkerUuid = System.Guid.NewGuid().ToString(); // this will abort the current checker and kill it.
-                /*checker = */ behavior.StartCoroutine(CheckLoop(checkerUuid, childId, activities, callback, log));
+                /*checker = */ behaviour.StartCoroutine(CheckLoop(checkerUuid, childId, activities, callback, log));
             }
         }
 
+        /// <summary>
+        /// Stop checking (and logging) usage.
+        /// If there is no current checking/logging process started with Allow2.StartChecking(), this call has no effect.
+        /// </summary>
         public static void StopChecking()
         {
             checkerUuid = null; // this will kill the running checker
         }
 
-        public static IEnumerator Request(
-            int dayTypeId,
-            int[] lift,
-            string message,
-            resultClosure callback)
+        /// <summary>
+        /// Submit a request on behalf of the current child.
+        /// </summary>
+        /// <returns>Results of the request.</returns>
+        /// <param name="behaviour">Provide a (any) MonoBehaviour for the sdk to use to call the platform.</param>
+        /// <param name="childId">The Id of the child making the request.</param>
+        /// <param name="dayTypeId">(optional)The Id of the day type they are requesting.</param>
+        /// <param name="lift">(optional) An Array of ids for Bans they are asking to be lifted.</param>
+        /// <param name="message">(optional) Message to send with the request.</param>
+        /// <param name="callback">callback that will return the response success or error.</param>
+        public static void Request(MonoBehaviour behaviour,
+                                   int childId,
+                                   int dayTypeId,
+                                   int[] lift,
+                                   string message,
+                                   resultClosure callback)
+        {
+            behaviour.StartCoroutine(_Request(childId, dayTypeId, lift, message, callback));
+        }
+
+        /// <summary>
+        /// Submit a request on behalf of the current child.
+        /// </summary>
+        /// <returns>Results of the request.</returns>
+        /// <param name="behaviour">Provide a (any) MonoBehaviour for the sdk to use to call the platform.</param>
+        /// <param name="dayTypeId">(optional)The Id of the day type they are requesting.</param>
+        /// <param name="lift">(optional) An Array of ids for Bans they are asking to be lifted.</param>
+        /// <param name="message">(optional) Message to send with the request.</param>
+        /// <param name="callback">callback that will return the response success or error.</param>
+        public static void Request(MonoBehaviour behaviour,
+                                   int dayTypeId,
+                                   int[] lift,
+                                   string message,
+                                   resultClosure callback)
+        {
+            behaviour.StartCoroutine(_Request(childId, dayTypeId, lift, message, callback));
+        }
+
+        static IEnumerator _Request(int childId,
+                                    int dayTypeId,
+                                    int[] lift,
+                                    string message,
+                                    resultClosure callback)
         {
             if (!IsPaired)
             {
@@ -554,13 +668,25 @@ namespace Allow2
             }
         }
 
-        public static void StartPairing(MonoBehaviour behavior, resultClosure callback)
+        /// <summary>
+        /// Use this routine to notify Allow2 you are starting a pairing session for a QR Code pairing.
+        /// Call this when you are about to display a QR code to the user to allow them to pair with ALlow2.
+        /// Get the appropriate QR Code using Allow2.GetQR().
+        /// 
+        /// </summary>
+        /// <param name="behaviour">Provide a (any) MonoBehaviour for the sdk to use to call the platform.</param>
+        /// <param name="callback">Callback that will return response success or error</param>
+        public static void StartPairing(MonoBehaviour behaviour, resultClosure callback)
         {
             //switch checker
             pairingUuid = System.Guid.NewGuid().ToString(); // this will abort the current poll and kill it.
-            behavior.StartCoroutine(PairingLoop(pairingUuid, callback));
+            behaviour.StartCoroutine(PairingLoop(pairingUuid, callback));
         }
 
+        /// <summary>
+        /// Tell Allow2 the QR Code for pairing is no longer being displayed.
+        /// Call this when you stop showing the QR code and therefore the user can no longer scan it.
+        /// </summary>
         public static void StopPairing()
         {
             pairingUuid = null; // this will kill the running checker

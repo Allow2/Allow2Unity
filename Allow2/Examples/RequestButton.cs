@@ -17,26 +17,30 @@ namespace Allow2.Allow2Examples
 {
 
     using UnityEngine;
-    using UnityEngine.UI;
 
-    public class DeviceNameInput : MonoBehaviour
+    public class RequestButton : MonoBehaviour
     {
 
-        public InputField inputField;
-        public Image qrImage;
+        public int dayTypeId = 23;
+        public int[] bansToLift = {};
 
-        void Awake()
+        public void Request()
         {
-            inputField.text = SystemInfo.deviceName;
-        }
-
-        public void InputValueChanged(string input)
-        {
-            Allow2.GetQR(this, input, delegate (string err, Texture2D qrCode)
-            {
-                Debug.Log("qrcode error: " + (err ?? "No Error") + " : " + (qrCode != null ? qrCode.dimension.ToString()  : "no"));
-                qrImage.GetComponent<RawImage>().texture = qrCode;
-            });
+            Debug.Log("Request");
+            Allow2.childId = 68;
+            Allow2.Request(
+                this,
+                dayTypeId,
+                bansToLift,
+                "test",
+                delegate (string err, Allow2CheckResult result)
+                {
+                   Debug.Log("Request Error" + err);
+                   if (result != null)
+                   {
+                       Debug.Log(result.Explanation);
+                   }
+               });
         }
     }
 }
