@@ -21,6 +21,9 @@ namespace Allow2.Allow2Examples
 
     public class SceneClass : MonoBehaviour
     {
+
+        public Image qrImage;
+
         void Awake()
         {
             // staging is only really for Allow2 internal development, omit this line in your code
@@ -42,8 +45,6 @@ namespace Allow2.Allow2Examples
             Allow2.GetQR(this, SystemInfo.deviceName, delegate (string err, Texture qrCode)
             {
                 Debug.Log("qrcode error: " + (err ?? "No Error") + " : " + (qrCode ? "yes" : "no"));
-                GameObject qrImage = GameObject.Find("qrcode");
-                Debug.Log("qrImage error: " + (qrImage ? "yes" : "no"));
                 qrImage.GetComponent<RawImage>().texture = qrCode;
             });
         }

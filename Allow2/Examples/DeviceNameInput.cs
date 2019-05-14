@@ -23,6 +23,7 @@ namespace Allow2.Allow2Examples
     {
 
         public InputField inputField;
+        public Image qrImage;
 
         void Awake()
         {
@@ -34,8 +35,6 @@ namespace Allow2.Allow2Examples
             Allow2.GetQR(this, input, delegate (string err, Texture qrCode)
             {
                 Debug.Log("qrcode error: " + (err ?? "No Error") + " : " + (qrCode ? "yes" : "no"));
-                GameObject qrImage = GameObject.Find("qrcode");
-                Debug.Log("qrImage error: " + (qrImage ? "yes" : "no"));
                 qrImage.GetComponent<RawImage>().texture = qrCode;
             });
         }

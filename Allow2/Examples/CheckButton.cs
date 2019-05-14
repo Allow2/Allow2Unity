@@ -50,5 +50,33 @@ namespace Allow2.Allow2Examples
                true);
         }
 
+        public void StartChecking()
+        {
+            Debug.Log("Start Checking");
+            Allow2.StartChecking(
+                this,
+                childId,
+                activities,
+                delegate (string err, Allow2CheckResult result)
+                {
+                    Debug.Log("Check Error" + err);
+                    Debug.Log("Paired: " + Allow2.IsPaired);
+                    if (result != null)
+                    {
+                        Debug.Log("Allowed: " + result.IsAllowed);
+                        if (!result.IsAllowed)
+                        {
+                            Debug.Log(result.Explanation);
+                        }
+                    }
+                },
+                true);
+        }
+
+        public void StopChecking()
+        {
+            Debug.Log("Stop Checking");
+            Allow2.StopChecking();
+        }
     }
 }

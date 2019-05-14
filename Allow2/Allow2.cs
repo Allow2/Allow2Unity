@@ -272,6 +272,7 @@ namespace Allow2
 
         public static void GetQR(MonoBehaviour behavior, string name, imageClosure callback) {
             DateTime now = new DateTime();
+            Debug.Log(qrDebounce.CompareTo(now));
             if ((qrCall != null) && (qrDebounce.CompareTo(now) > 0)) {
                 Debug.Log("debounce");
                 Coroutine oldCall = qrCall;
