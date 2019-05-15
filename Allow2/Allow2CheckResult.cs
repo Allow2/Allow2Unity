@@ -82,12 +82,20 @@ namespace Allow2
         //{
         //}
 
+        /// <summary>
+        /// Convenience method.
+        /// </summary>
+        /// <value>The activities.</value>
         public JSONNode Activities {
             get {
                 return this["activities"];
             }
         }
 
+        /// <summary>
+        /// Convenience method.
+        /// </summary>
+        /// <value>The subscription.</value>
         public JSONNode Subscription
         {
             get
@@ -96,6 +104,10 @@ namespace Allow2
             }
         }
 
+        /// <summary>
+        /// When does the validity of this result expire? (cache expiry).
+        /// </summary>
+        /// <value>The expiry Date/Time</value>
         public DateTime Expires {
             get {
                 int unixTimeStamp = ((Activities != null) && (Activities[0] != null)) ?
@@ -104,6 +116,10 @@ namespace Allow2
             }
         }
 
+        /// <summary>
+        /// Returns <see langword="null"/> if the user is financial or within free usage tier, otherwise returns a message indicating they need a subscription
+        /// </summary>
+        /// <value>The need subscription.</value>
         public string NeedSubscription {
             get {
                 if (!Subscription["financial"].AsBool) {
@@ -123,12 +139,20 @@ namespace Allow2
             }
         }
     
+        /// <summary>
+        /// A simple top level result, the child is currently allowed or not based on the activity time and quotas.
+        /// </summary>
+        /// <value><c>true</c> if is allowed; otherwise, <c>false</c>.</value>
         public bool IsAllowed {
             get {
                 return this["allowed"].AsBool;
             }
         }
 
+        /// <summary>
+        /// A Summary explanation of the current reasons they may not be allowed at this time.
+        /// </summary>
+        /// <value>The explanation.</value>
         public string Explanation {
             get {
                 List<string> reasons = new List<string>();
@@ -158,6 +182,10 @@ namespace Allow2
             }
         }
 
+        /// <summary>
+        /// A list of the current bans in place for this child.
+        /// </summary>
+        /// <value>The current bans.</value>
         public Allow2Ban[] CurrentBans {
             get {
                 List<Allow2Ban> bans = new List<Allow2Ban>();
@@ -184,6 +212,10 @@ namespace Allow2
             }
         }
 
+        /// <summary>
+        /// The type of day it is today.
+        /// </summary>
+        /// <value>The day type.</value>
         public Allow2Day Today
         {
             get
@@ -193,6 +225,10 @@ namespace Allow2
             }
         }
 
+        /// <summary>
+        /// The type of day it will be tomorrow.
+        /// </summary>
+        /// <value>The day type.</value>
         public Allow2Day Tomorrow
         {
             get
@@ -202,6 +238,10 @@ namespace Allow2
             }
         }
 
+        /// <summary>
+        /// All Day Types the parent has set on their account that the child should be aware of or can choose from for a request.
+        /// </summary>
+        /// <value>All day types.</value>
         public Allow2Day[] AllDayTypes
         {
             get

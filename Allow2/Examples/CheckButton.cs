@@ -27,6 +27,9 @@ namespace Allow2.Allow2Examples
             (int)Activity.Computer
         };
 
+        /// <summary>
+        /// Check once and log activity for the given child and activities.
+        /// </summary>
         public void Check()
         {
             Debug.Log("Check");
@@ -50,6 +53,9 @@ namespace Allow2.Allow2Examples
                true);
         }
 
+        /// <summary>
+        /// Start a continuous check (and logging usage) for the given child and activities.
+        /// </summary>
         public void StartChecking()
         {
             Debug.Log("Start Checking");
@@ -73,6 +79,9 @@ namespace Allow2.Allow2Examples
                 true);
         }
 
+        /// <summary>
+        /// Stop checking and logging.
+        /// </summary>
         public void StopChecking()
         {
             Debug.Log("Stop Checking");

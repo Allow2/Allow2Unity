@@ -22,7 +22,7 @@ namespace Allow2.Allow2Examples
     public class SceneClass : MonoBehaviour
     {
 
-        public Image qrImage;
+        public RawImage qrImage;
 
         void Awake()
         {
@@ -41,12 +41,27 @@ namespace Allow2.Allow2Examples
             Debug.Log("isPaired: " + Allow2.IsPaired);
             Debug.Log("Children: " + Allow2.Children);
 
+            // Not Required if the textfield sets the name on display, it will also trigger an update of the QR Code
             // and in the pairing interface, we need a QR code to make the process simple for our users
-            Allow2.GetQR(this, SystemInfo.deviceName, delegate (string err, Texture2D qrCode)
-            {
-                Debug.Log("qrcode error: " + (err ?? "No Error") + " : " + (qrCode ? "yes" : "no"));
-                Debug.Log(qrImage.GetComponent<RawImage>());
-                qrImage.GetComponent<RawImage>().texture = qrCode;
+            //Allow2.GetQR(this, SystemInfo.deviceName, delegate (string err, Texture2D qrCode)
+            //{
+            //    Debug.Log("qrcode error: " + (err ?? "No Error") + " : " + (qrCode ? "yes" : "no"));
+            //    Debug.Log(qrImage.GetComponent<RawImage>());
+            //    qrImage.GetComponent<RawImage>().texture = qrCode;
+            //});
+
+            // usually start the pairing background process here,
+            // unless you have opted to not allow pairing with QR Code (but this is highly recommended for a better user experience)
+            Allow2.StartPairing(this, delegate (string err, Allow2CheckResult result) {
+                // this may be called several times with errors
+                if (err != null) {
+                    Debug.Log(err);
+                    return;
+                }
+                // once paired, the pairing process will automatically stop itself
+                // you should close off the pairing interface here and display success to the end user
+                Debug.Log("isPaired: " + Allow2.IsPaired);
+                Debug.Log("Children: " + Allow2.Children);
             });
         }
     }

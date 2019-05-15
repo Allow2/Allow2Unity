@@ -23,18 +23,26 @@ namespace Allow2.Allow2Examples
     {
 
         public InputField inputField;
-        public Image qrImage;
+        public RawImage qrImage;
 
+        /// <summary>
+        /// On creating the field, we pre-populate it with the system device name.
+        /// This will auto-trigger the "InputValueChanged" and update the QR Code for pairing.
+        /// </summary>
         void Awake()
         {
             inputField.text = SystemInfo.deviceName;
         }
 
+        /// <summary>
+        /// When the input value changes, generate a new QR Code, so the user can interactively edit the name and the pairing process uses that name.
+        /// </summary>
+        /// <param name="input">Input.</param>
         public void InputValueChanged(string input)
         {
             Allow2.GetQR(this, input, delegate (string err, Texture2D qrCode)
             {
-                Debug.Log("qrcode error: " + (err ?? "No Error") + " : " + (qrCode != null ? qrCode.dimension.ToString()  : "no"));
+                Debug.Log("Input Value qrcode error: " + (err ?? "No Error") + " : " + (qrCode != null ? qrCode.width.ToString() + "," + qrCode.height.ToString() : "no"));
                 qrImage.GetComponent<RawImage>().texture = qrCode;
             });
         }

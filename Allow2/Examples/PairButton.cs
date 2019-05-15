@@ -21,14 +21,22 @@ namespace Allow2.Allow2Examples
 
     public class PairButton : MonoBehaviour
     {
+
+        public InputField UsernameField;
+        public InputField PasswordField;
+        public InputField DeviceNameField;
+
+        /// <summary>
+        /// Manually pair with Allow2 by providing the username and password entered by the user in your pairing interface.
+        /// </summary>
         public void Pair()
         {
             Debug.Log("Start Pairing");
             Allow2.Pair(
                 this,
-                "andrew@imagineit.com.au",
-                "2}LJA84$3y88H]o",
-                "Unity Test",
+                UsernameField.text,
+                PasswordField.text,
+                DeviceNameField.text,
                 delegate (string err, Allow2CheckResult result)
                 {
                     Debug.Log("Stop Pairing");

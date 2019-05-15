@@ -24,6 +24,9 @@ namespace Allow2.Allow2Examples
         public int dayTypeId = 23;
         public int[] bansToLift = {};
 
+        /// <summary>
+        /// Send a request on behalf of the child.
+        /// </summary>
         public void Request()
         {
             Debug.Log("Request");
