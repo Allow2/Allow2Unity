@@ -1,32 +1,30 @@
-﻿{
-  "category": "AssetStore/Unity",
-  "description": "Allow2 Parental Freedom.",
-  "gitHead": "0d2114387a99011be685886f8ea902242e323e70",
+{
+  "name": "com.allow2.sdk",
+  "version": "2.0.0-alpha.1",
+  "displayName": "Allow2 Parental Freedom SDK",
+  "description": "Allow2 Parental Freedom enforcement for Unity games and apps.",
+  "category": "Services",
   "keywords": [
     "allow2",
+    "parental",
+    "freedom",
     "child",
     "children",
-    "control",
     "family",
-    "freedom",
     "gaming",
-    "limit",
-    "limits",
-    "parental",
-    "parental-control",
-    "quota",
-    "social",
-    "social-network",
-    "time",
     "time-limit",
-    "unity"
+    "screen-time",
+    "quota"
   ],
-  "name": "com.allow2.allow2",
-  "repoPackagePath": "build/install/com.allow2.ads",
+  "author": {
+    "name": "Allow2 Pty Ltd",
+    "email": "support@allow2.com",
+    "url": "https://allow2.com"
+  },
   "repository": {
     "type": "git",
-    "url": "ssh://git@github.com/Unity-Technologies/com.unity.ads.git"
+    "url": "https://github.com/Allow2/allow2unity.git"
   },
-  "unity": "2017.4",
-  "version": "0.1.0"
+  "unity": "2021.3",
+  "license": "MIT"
 }
