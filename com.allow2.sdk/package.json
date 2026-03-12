@@ -1,0 +1,27 @@
+{
+  "name": "com.allow2.sdk",
+  "version": "2.0.0-alpha.1",
+  "displayName": "Allow2 Parental Freedom SDK",
+  "description": "Allow2 Parental Freedom enforcement for Unity games and apps. Provides pairing, child identification, permission checks, warnings, block screens, requests, and feedback.",
+  "unity": "2021.3",
+  "unityRelease": "0f1",
+  "keywords": [
+    "allow2",
+    "parental",
+    "freedom",
+    "parental-controls",
+    "screen-time",
+    "child-safety"
+  ],
+  "author": {
+    "name": "Allow2 Pty Ltd",
+    "email": "support@allow2.com",
+    "url": "https://allow2.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Allow2/allow2unity.git"
+  },
+  "dependencies": {}
+}
