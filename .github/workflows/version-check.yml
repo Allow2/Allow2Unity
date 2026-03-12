@@ -1,0 +1,77 @@
+name: Version Check
+
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  check-version-bump:
+    name: Verify version bump if Runtime changed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if Runtime files changed
+        id: changes
+        run: |
+          # Get list of changed files in this PR
+          CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD 2>/dev/null || \
+                    git diff --name-only HEAD~1)
+
+          echo "Changed files:"
+          echo "$CHANGED"
+
+          # Check if any Runtime/ C# files changed
+          RUNTIME_CHANGED=$(echo "$CHANGED" | grep -c '^com\.allow2\.sdk/Runtime/.*\.cs$' || true)
+          echo "runtime-changed=$RUNTIME_CHANGED" >> "$GITHUB_OUTPUT"
+
+          # Check if package.json changed
+          PKG_CHANGED=$(echo "$CHANGED" | grep -c '^com\.allow2\.sdk/package\.json$' || true)
+          echo "package-changed=$PKG_CHANGED" >> "$GITHUB_OUTPUT"
+
+          echo "Runtime .cs files changed: $RUNTIME_CHANGED"
+          echo "package.json changed: $PKG_CHANGED"
+
+      - name: Verify version was bumped
+        if: steps.changes.outputs.runtime-changed != '0'
+        run: |
+          PKG_CHANGED="${{ steps.changes.outputs.package-changed }}"
+
+          if [ "$PKG_CHANGED" = "0" ]; then
+            echo "::warning::Runtime C# files were modified but package.json version was not updated."
+            echo ""
+            echo "If this PR includes user-facing changes, please bump the version in"
+            echo "com.allow2.sdk/package.json before merging."
+            echo ""
+            echo "Current version: $(python3 -c "import json; print(json.load(open('com.allow2.sdk/package.json'))['version'])")"
+            echo ""
+            echo "Semver guide:"
+            echo "  - Bug fixes:        patch  (e.g., 2.0.1)"
+            echo "  - New features:     minor  (e.g., 2.1.0)"
+            echo "  - Breaking changes: major  (e.g., 3.0.0)"
+            echo "  - Pre-release:      append (e.g., 2.0.0-alpha.2)"
+            exit 1
+          fi
+
+          # Verify the version actually changed (not just formatting)
+          BASE_VERSION=$(git show "origin/${{ github.base_ref }}:com.allow2.sdk/package.json" 2>/dev/null | \
+                         python3 -c "import json, sys; print(json.load(sys.stdin)['version'])" 2>/dev/null || echo "unknown")
+          HEAD_VERSION=$(python3 -c "import json; print(json.load(open('com.allow2.sdk/package.json'))['version'])")
+
+          if [ "$BASE_VERSION" = "$HEAD_VERSION" ]; then
+            echo "::warning::package.json was modified but the version field is unchanged ($HEAD_VERSION)."
+            echo "Please bump the version number."
+            exit 1
+          fi
+
+          echo "Version bump confirmed: $BASE_VERSION -> $HEAD_VERSION"
+
+      - name: Skip (no Runtime changes)
+        if: steps.changes.outputs.runtime-changed == '0'
+        run: echo "No Runtime C# files changed — version bump not required."

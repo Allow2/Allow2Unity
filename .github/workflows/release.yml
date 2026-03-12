@@ -1,0 +1,299 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    name: Validate release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      prerelease: ${{ steps.check.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag matches package.json
+        id: check
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          PKG_VERSION=$(python3 -c "import json; print(json.load(open('com.allow2.sdk/package.json'))['version'])")
+
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
+            exit 1
+          fi
+
+          echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+
+          # Detect pre-release (alpha, beta, rc, preview)
+          if echo "$PKG_VERSION" | grep -qE '[-](alpha|beta|rc|preview)'; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "Releasing v$PKG_VERSION (prerelease=${{ steps.check.outputs.prerelease || 'false' }})"
+
+  build-check:
+    name: Compilation check
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build SDK
+        run: |
+          mkdir -p .ci-build
+
+          cat > .ci-build/Allow2.SDK.CI.csproj << 'CSPROJ'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net8.0</TargetFramework>
+              <Nullable>disable</Nullable>
+              <NoWarn>CS0649;CS0414;CS0169;CS0067</NoWarn>
+            </PropertyGroup>
+            <ItemGroup>
+              <Compile Include="../com.allow2.sdk/Runtime/**/*.cs" />
+              <Compile Include="UnityStubs.cs" />
+            </ItemGroup>
+          </Project>
+          CSPROJ
+
+          # Reuse stubs from CI workflow (same file)
+          cat > .ci-build/UnityStubs.cs << 'STUBS'
+          using System;
+          using System.Collections;
+
+          namespace UnityEngine
+          {
+              public class Object { }
+              public class MonoBehaviour : Behaviour
+              {
+                  public Coroutine StartCoroutine(IEnumerator routine) => new Coroutine();
+                  public void StopCoroutine(Coroutine routine) { }
+              }
+              public class Behaviour : Component { public bool enabled { get; set; } }
+              public class Component : Object
+              {
+                  public GameObject gameObject => null;
+                  public Transform transform => null;
+              }
+              public class GameObject : Object
+              {
+                  public string name { get; set; }
+                  public T AddComponent<T>() where T : Component => default;
+                  public T GetComponent<T>() => default;
+                  public static void DontDestroyOnLoad(Object target) { }
+                  public GameObject(string name) { }
+              }
+              public class Transform : Component { }
+              public class ScriptableObject : Object { }
+              public class Coroutine { }
+              public class WaitForSeconds { public WaitForSeconds(float s) { } }
+              public class WaitForSecondsRealtime : CustomYieldInstruction
+              {
+                  public WaitForSecondsRealtime(float s) { }
+                  public override bool keepWaiting => false;
+              }
+              public abstract class CustomYieldInstruction : IEnumerator
+              {
+                  public abstract bool keepWaiting { get; }
+                  public object Current => null;
+                  public bool MoveNext() => keepWaiting;
+                  public void Reset() { }
+              }
+              public static class Debug
+              {
+                  public static void Log(object m) { }
+                  public static void LogWarning(object m) { }
+                  public static void LogError(object m) { }
+              }
+              public static class PlayerPrefs
+              {
+                  public static string GetString(string k, string d = "") => d;
+                  public static void SetString(string k, string v) { }
+                  public static int GetInt(string k, int d = 0) => d;
+                  public static void SetInt(string k, int v) { }
+                  public static void DeleteKey(string k) { }
+                  public static void Save() { }
+                  public static bool HasKey(string k) => false;
+              }
+              public static class JsonUtility
+              {
+                  public static string ToJson(object o) => "{}";
+                  public static T FromJson<T>(string j) => default;
+              }
+              public static class Application
+              {
+                  public static RuntimePlatform platform => RuntimePlatform.LinuxPlayer;
+                  public static string productName => "CI";
+                  public static string version => "0.0.0";
+                  public static string unityVersion => "2021.3.0f1";
+              }
+              public enum RuntimePlatform { LinuxPlayer, WindowsPlayer, OSXPlayer, Android, IPhonePlayer, WebGLPlayer }
+              [AttributeUsage(AttributeTargets.Field)] public class SerializeFieldAttribute : Attribute { }
+              [AttributeUsage(AttributeTargets.Field)] public class HeaderAttribute : Attribute { public HeaderAttribute(string h) { } }
+              [AttributeUsage(AttributeTargets.Field)] public class TooltipAttribute : Attribute { public TooltipAttribute(string t) { } }
+              [AttributeUsage(AttributeTargets.Field)] public class SpaceAttribute : Attribute { public SpaceAttribute() { } public SpaceAttribute(float h) { } }
+              [AttributeUsage(AttributeTargets.Field)] public class TextAreaAttribute : Attribute { public TextAreaAttribute() { } public TextAreaAttribute(int a, int b) { } }
+              [AttributeUsage(AttributeTargets.Field)] public class RangeAttribute : Attribute { public RangeAttribute(float a, float b) { } }
+          }
+          namespace UnityEngine.Events
+          {
+              public class UnityEvent { public void Invoke() { } public void AddListener(Action c) { } public void RemoveListener(Action c) { } }
+              public class UnityEvent<T0> : UnityEvent { public void Invoke(T0 a) { } public void AddListener(Action<T0> c) { } public void RemoveListener(Action<T0> c) { } }
+              public class UnityEvent<T0, T1> : UnityEvent { public void Invoke(T0 a, T1 b) { } public void AddListener(Action<T0, T1> c) { } public void RemoveListener(Action<T0, T1> c) { } }
+              public class UnityEvent<T0, T1, T2> : UnityEvent { public void Invoke(T0 a, T1 b, T2 c) { } public void AddListener(Action<T0, T1, T2> c) { } public void RemoveListener(Action<T0, T1, T2> c) { } }
+          }
+          namespace UnityEngine.Networking
+          {
+              public class UnityWebRequest : IDisposable
+              {
+                  public string url { get; set; }
+                  public string method { get; set; }
+                  public long responseCode { get; }
+                  public Result result { get; }
+                  public DownloadHandler downloadHandler { get; set; }
+                  public UploadHandler uploadHandler { get; set; }
+                  public UnityWebRequest(string u, string m) { }
+                  public static UnityWebRequest Get(string u) => new UnityWebRequest(u, "GET");
+                  public static string EscapeURL(string s) => Uri.EscapeDataString(s);
+                  public void SetRequestHeader(string n, string v) { }
+                  public UnityWebRequestAsyncOperation SendWebRequest() => new UnityWebRequestAsyncOperation();
+                  public void Dispose() { }
+                  public enum Result { InProgress, Success, ConnectionError, ProtocolError, DataProcessingError }
+              }
+              public class UnityWebRequestAsyncOperation : AsyncOperation { }
+              public class AsyncOperation : YieldInstruction { public bool isDone { get; } }
+              public class YieldInstruction { }
+              public class DownloadHandler : IDisposable { public virtual string text => ""; public virtual byte[] data => Array.Empty<byte>(); public void Dispose() { } }
+              public class DownloadHandlerBuffer : DownloadHandler { public DownloadHandlerBuffer() { } }
+              public class UploadHandler : IDisposable { public string contentType { get; set; } public void Dispose() { } }
+              public class UploadHandlerRaw : UploadHandler { public UploadHandlerRaw(byte[] d) { } }
+          }
+          STUBS
+
+          dotnet build .ci-build/Allow2.SDK.CI.csproj --configuration Release
+
+  create-release:
+    name: Create GitHub Release
+    needs: [validate, build-check]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+
+          # Find the previous tag
+          PREV_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]' | head -2 | tail -1)
+
+          if [ -z "$PREV_TAG" ] || [ "$PREV_TAG" = "v$VERSION" ]; then
+            # First release or only one tag — use all commits
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges HEAD)
+          else
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges "$PREV_TAG"..HEAD)
+          fi
+
+          if [ -z "$COMMITS" ]; then
+            COMMITS="- Initial release"
+          fi
+
+          # Write changelog to file (handles multiline safely)
+          cat > /tmp/changelog.md << CHANGELOG_EOF
+          ## What's Changed
+
+          $COMMITS
+
+          ## Installation
+
+          ### Unity Package Manager (Git URL)
+
+          Add to your \`Packages/manifest.json\`:
+
+          \`\`\`json
+          {
+            "dependencies": {
+              "com.allow2.sdk": "https://github.com/Allow2/allow2unity.git?path=com.allow2.sdk#v${VERSION}"
+            }
+          }
+          \`\`\`
+
+          Or in the Unity Editor:
+          1. Open **Window > Package Manager**
+          2. Click **+** > **Add package from git URL**
+          3. Enter: \`https://github.com/Allow2/allow2unity.git?path=com.allow2.sdk#v${VERSION}\`
+
+          ### OpenUPM
+
+          \`\`\`bash
+          openupm add com.allow2.sdk
+          \`\`\`
+
+          ## Requirements
+
+          - Unity 2021.3 or later
+          - No additional dependencies
+          CHANGELOG_EOF
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          PRERELEASE="${{ needs.validate.outputs.prerelease }}"
+
+          PRERELEASE_FLAG=""
+          if [ "$PRERELEASE" = "true" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
+          gh release create "v${VERSION}" \
+            --title "v${VERSION}" \
+            --notes-file /tmp/changelog.md \
+            $PRERELEASE_FLAG
+
+  notify-openupm:
+    name: Notify OpenUPM
+    needs: [validate, create-release]
+    runs-on: ubuntu-latest
+    # This job is optional — it will not fail the release if OpenUPM notification fails
+    continue-on-error: true
+    steps:
+      - name: Trigger OpenUPM update
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+
+          # OpenUPM automatically detects new tags for registered packages.
+          # This step creates a lightweight notification; if the package is
+          # not yet registered on OpenUPM, this will simply be a no-op.
+          #
+          # To register: https://openupm.com/packages/add/
+          # Package name: com.allow2.sdk
+          # Repository: https://github.com/Allow2/allow2unity
+
+          echo "Release v${VERSION} published. OpenUPM will auto-detect the new tag."
+          echo ""
+          echo "If the package is not yet on OpenUPM, register it at:"
+          echo "  https://openupm.com/packages/add/"
+          echo ""
+          echo "Package: com.allow2.sdk"
+          echo "Git URL: https://github.com/Allow2/allow2unity.git"
+          echo "Min Unity: 2021.3"

@@ -1,0 +1,343 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: Build & Test (C# compilation check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Create Unity stub project for compilation
+        run: |
+          mkdir -p .ci-build
+
+          # Create a .csproj that references all Runtime .cs files
+          # with Unity Engine stubs so pure C# logic compiles
+          cat > .ci-build/Allow2.SDK.CI.csproj << 'CSPROJ'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net8.0</TargetFramework>
+              <Nullable>disable</Nullable>
+              <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+              <!-- Suppress warnings about Unity stubs -->
+              <NoWarn>CS0649;CS0414;CS0169;CS0067</NoWarn>
+            </PropertyGroup>
+            <ItemGroup>
+              <Compile Include="../com.allow2.sdk/Runtime/**/*.cs" />
+              <Compile Include="UnityStubs.cs" />
+            </ItemGroup>
+          </Project>
+          CSPROJ
+
+          # Create minimal Unity Engine stubs so the code compiles
+          cat > .ci-build/UnityStubs.cs << 'STUBS'
+          // Minimal Unity Engine stubs for CI compilation checks.
+          // These provide just enough type surface for the SDK's pure C#
+          // to compile outside of the Unity Editor.
+
+          using System;
+          using System.Collections;
+          using System.Text;
+
+          namespace UnityEngine
+          {
+              public class Object { }
+
+              public class MonoBehaviour : Behaviour
+              {
+                  public Coroutine StartCoroutine(IEnumerator routine) => new Coroutine();
+                  public void StopCoroutine(Coroutine routine) { }
+              }
+
+              public class Behaviour : Component
+              {
+                  public bool enabled { get; set; }
+              }
+
+              public class Component : Object
+              {
+                  public GameObject gameObject => null;
+                  public Transform transform => null;
+              }
+
+              public class GameObject : Object
+              {
+                  public string name { get; set; }
+                  public T AddComponent<T>() where T : Component => default;
+                  public T GetComponent<T>() => default;
+                  public static void DontDestroyOnLoad(Object target) { }
+                  public GameObject(string name) { }
+              }
+
+              public class Transform : Component { }
+
+              public class ScriptableObject : Object { }
+
+              public class Coroutine { }
+
+              public class WaitForSeconds
+              {
+                  public WaitForSeconds(float seconds) { }
+              }
+
+              public class WaitForSecondsRealtime : CustomYieldInstruction
+              {
+                  public WaitForSecondsRealtime(float seconds) { }
+                  public override bool keepWaiting => false;
+              }
+
+              public abstract class CustomYieldInstruction : IEnumerator
+              {
+                  public abstract bool keepWaiting { get; }
+                  public object Current => null;
+                  public bool MoveNext() => keepWaiting;
+                  public void Reset() { }
+              }
+
+              public static class Debug
+              {
+                  public static void Log(object message) { }
+                  public static void LogWarning(object message) { }
+                  public static void LogError(object message) { }
+              }
+
+              public static class PlayerPrefs
+              {
+                  public static string GetString(string key, string defaultValue = "") => defaultValue;
+                  public static void SetString(string key, string value) { }
+                  public static int GetInt(string key, int defaultValue = 0) => defaultValue;
+                  public static void SetInt(string key, int value) { }
+                  public static void DeleteKey(string key) { }
+                  public static void Save() { }
+                  public static bool HasKey(string key) => false;
+              }
+
+              public static class JsonUtility
+              {
+                  public static string ToJson(object obj) => "{}";
+                  public static T FromJson<T>(string json) => default;
+              }
+
+              public static class Application
+              {
+                  public static RuntimePlatform platform => RuntimePlatform.LinuxPlayer;
+                  public static string productName => "CI";
+                  public static string version => "0.0.0";
+                  public static string unityVersion => "2021.3.0f1";
+              }
+
+              public enum RuntimePlatform
+              {
+                  LinuxPlayer, WindowsPlayer, OSXPlayer, Android, IPhonePlayer, WebGLPlayer
+              }
+
+              [AttributeUsage(AttributeTargets.Field)]
+              public class SerializeFieldAttribute : Attribute { }
+
+              [AttributeUsage(AttributeTargets.Field)]
+              public class HeaderAttribute : Attribute
+              {
+                  public HeaderAttribute(string header) { }
+              }
+
+              [AttributeUsage(AttributeTargets.Field)]
+              public class TooltipAttribute : Attribute
+              {
+                  public TooltipAttribute(string tooltip) { }
+              }
+
+              [AttributeUsage(AttributeTargets.Field)]
+              public class SpaceAttribute : Attribute
+              {
+                  public SpaceAttribute() { }
+                  public SpaceAttribute(float height) { }
+              }
+
+              [AttributeUsage(AttributeTargets.Field)]
+              public class TextAreaAttribute : Attribute
+              {
+                  public TextAreaAttribute() { }
+                  public TextAreaAttribute(int minLines, int maxLines) { }
+              }
+
+              [AttributeUsage(AttributeTargets.Field)]
+              public class RangeAttribute : Attribute
+              {
+                  public RangeAttribute(float min, float max) { }
+              }
+          }
+
+          namespace UnityEngine.Events
+          {
+              public class UnityEvent
+              {
+                  public void Invoke() { }
+                  public void AddListener(Action call) { }
+                  public void RemoveListener(Action call) { }
+              }
+
+              public class UnityEvent<T0> : UnityEvent
+              {
+                  public void Invoke(T0 arg0) { }
+                  public void AddListener(Action<T0> call) { }
+                  public void RemoveListener(Action<T0> call) { }
+              }
+
+              public class UnityEvent<T0, T1> : UnityEvent
+              {
+                  public void Invoke(T0 arg0, T1 arg1) { }
+                  public void AddListener(Action<T0, T1> call) { }
+                  public void RemoveListener(Action<T0, T1> call) { }
+              }
+
+              public class UnityEvent<T0, T1, T2> : UnityEvent
+              {
+                  public void Invoke(T0 arg0, T1 arg1, T2 arg2) { }
+                  public void AddListener(Action<T0, T1, T2> call) { }
+                  public void RemoveListener(Action<T0, T1, T2> call) { }
+              }
+          }
+
+          namespace UnityEngine.Networking
+          {
+              public class UnityWebRequest : IDisposable
+              {
+                  public string url { get; set; }
+                  public string method { get; set; }
+                  public long responseCode { get; }
+                  public Result result { get; }
+                  public DownloadHandler downloadHandler { get; set; }
+                  public UploadHandler uploadHandler { get; set; }
+
+                  public UnityWebRequest(string url, string method) { }
+
+                  public static UnityWebRequest Get(string uri) => new UnityWebRequest(uri, "GET");
+                  public static string EscapeURL(string s) => Uri.EscapeDataString(s);
+
+                  public void SetRequestHeader(string name, string value) { }
+                  public UnityWebRequestAsyncOperation SendWebRequest() => new UnityWebRequestAsyncOperation();
+                  public void Dispose() { }
+
+                  public enum Result { InProgress, Success, ConnectionError, ProtocolError, DataProcessingError }
+              }
+
+              public class UnityWebRequestAsyncOperation : AsyncOperation { }
+
+              public class AsyncOperation : YieldInstruction
+              {
+                  public bool isDone { get; }
+              }
+
+              public class YieldInstruction { }
+
+              public class DownloadHandler : IDisposable
+              {
+                  public virtual string text => "";
+                  public virtual byte[] data => Array.Empty<byte>();
+                  public void Dispose() { }
+              }
+
+              public class DownloadHandlerBuffer : DownloadHandler
+              {
+                  public DownloadHandlerBuffer() { }
+              }
+
+              public class UploadHandler : IDisposable
+              {
+                  public string contentType { get; set; }
+                  public void Dispose() { }
+              }
+
+              public class UploadHandlerRaw : UploadHandler
+              {
+                  public UploadHandlerRaw(byte[] data) { }
+              }
+          }
+          STUBS
+
+      - name: Restore .NET packages
+        run: dotnet restore .ci-build/Allow2.SDK.CI.csproj
+
+      - name: Build SDK
+        run: dotnet build .ci-build/Allow2.SDK.CI.csproj --configuration Release --no-restore
+
+      - name: Run tests (if present)
+        run: |
+          if compgen -G "com.allow2.sdk/Tests/**/*.cs" > /dev/null 2>&1; then
+            echo "Test files found — running tests"
+            dotnet test .ci-build/Allow2.SDK.CI.csproj --no-build --configuration Release
+          else
+            echo "No test files found in com.allow2.sdk/Tests/ — skipping"
+          fi
+
+  validate-package:
+    name: Validate package.json
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate package.json structure
+        run: |
+          PKG="com.allow2.sdk/package.json"
+
+          if [ ! -f "$PKG" ]; then
+            echo "::error::package.json not found at $PKG"
+            exit 1
+          fi
+
+          # Validate it's valid JSON
+          if ! python3 -c "import json; json.load(open('$PKG'))"; then
+            echo "::error::package.json is not valid JSON"
+            exit 1
+          fi
+
+          # Check required fields
+          for field in name version displayName description unity author license; do
+            if ! python3 -c "
+          import json, sys
+          pkg = json.load(open('$PKG'))
+          if '$field' not in pkg or not pkg['$field']:
+              print(f'::error::Missing required field: $field')
+              sys.exit(1)
+          "; then
+              exit 1
+            fi
+          done
+
+          # Verify package name matches expected
+          NAME=$(python3 -c "import json; print(json.load(open('$PKG'))['name'])")
+          if [ "$NAME" != "com.allow2.sdk" ]; then
+            echo "::error::Package name should be 'com.allow2.sdk', got '$NAME'"
+            exit 1
+          fi
+
+          VERSION=$(python3 -c "import json; print(json.load(open('$PKG'))['version'])")
+          echo "Package: $NAME v$VERSION"
+          echo "package-version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check version matches tag (on tag push only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          PKG_VERSION=$(python3 -c "import json; print(json.load(open('com.allow2.sdk/package.json'))['version'])")
+
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
+            exit 1
+          fi
+
+          echo "Version match confirmed: v$PKG_VERSION"
