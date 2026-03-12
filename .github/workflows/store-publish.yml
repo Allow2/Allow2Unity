@@ -1,0 +1,197 @@
+name: Asset Store Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-unitypackage:
+    name: Build .unitypackage
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      filename: ${{ steps.version.outputs.filename }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        id: version
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          PKG_VERSION=$(python3 -c "import json; print(json.load(open('com.allow2.sdk/package.json'))['version'])")
+
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
+            exit 1
+          fi
+
+          echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+          echo "filename=Allow2SDK-${PKG_VERSION}.unitypackage" >> "$GITHUB_OUTPUT"
+          echo "Building .unitypackage for v$PKG_VERSION"
+
+      - name: Build .unitypackage
+        run: |
+          chmod +x packaging/asset-store/export-unitypackage.sh
+          ./packaging/asset-store/export-unitypackage.sh --version "${{ steps.version.outputs.version }}"
+
+      - name: Verify package
+        run: |
+          FILENAME="${{ steps.version.outputs.filename }}"
+
+          if [ ! -f "$FILENAME" ]; then
+            echo "::error::Expected output file $FILENAME not found"
+            exit 1
+          fi
+
+          # Verify it is a valid gzipped tar
+          if ! file "$FILENAME" | grep -q "gzip"; then
+            echo "::error::$FILENAME is not a valid gzip archive"
+            exit 1
+          fi
+
+          # List contents to verify structure
+          echo "Package contents (first 30 entries):"
+          tar -tzf "$FILENAME" | head -30
+
+          # Verify Assets/Allow2 paths exist
+          if ! tar -tzf "$FILENAME" | grep -q "pathname"; then
+            echo "::error::Package does not contain pathname entries — invalid .unitypackage structure"
+            exit 1
+          fi
+
+          echo "Package verified: $(du -h "$FILENAME" | cut -f1)"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unitypackage
+          path: ${{ steps.version.outputs.filename }}
+          retention-days: 90
+
+  attach-to-release:
+    name: Attach to GitHub Release
+    needs: build-unitypackage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: unitypackage
+
+      - name: Wait for release to exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          VERSION="${{ needs.build-unitypackage.outputs.version }}"
+          TAG="v${VERSION}"
+
+          # The release.yml workflow may still be creating the release.
+          # Poll for up to 5 minutes (30 attempts, 10s apart).
+          for i in $(seq 1 30); do
+            if gh release view "$TAG" > /dev/null 2>&1; then
+              echo "Release $TAG found."
+              exit 0
+            fi
+            echo "Waiting for release $TAG to be created... (attempt $i/30)"
+            sleep 10
+          done
+
+          echo "::error::Release $TAG was not found after 5 minutes"
+          exit 1
+
+      - name: Upload .unitypackage to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          VERSION="${{ needs.build-unitypackage.outputs.version }}"
+          FILENAME="${{ needs.build-unitypackage.outputs.filename }}"
+          TAG="v${VERSION}"
+
+          gh release upload "$TAG" "$FILENAME" --clobber
+
+          echo "Attached $FILENAME to release $TAG"
+
+  submit-asset-store:
+    name: Submit to Asset Store
+    needs: [build-unitypackage, attach-to-release]
+    runs-on: ubuntu-latest
+    if: vars.ENABLE_ASSET_STORE == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: unitypackage
+
+      - name: Submit to Unity Asset Store
+        env:
+          UNITY_ASSET_STORE_TOKEN: ${{ secrets.UNITY_ASSET_STORE_TOKEN }}
+        run: |
+          VERSION="${{ needs.build-unitypackage.outputs.version }}"
+          FILENAME="${{ needs.build-unitypackage.outputs.filename }}"
+
+          echo "============================================================"
+          echo "  Asset Store Submission — v${VERSION}"
+          echo "============================================================"
+          echo ""
+
+          if [ -z "${UNITY_ASSET_STORE_TOKEN:-}" ]; then
+            echo "::warning::UNITY_ASSET_STORE_TOKEN secret is not set."
+            echo ""
+            echo "Automated Asset Store submission is not yet available."
+            echo "Unity does not currently provide a public API for automated"
+            echo "package submission. Follow the manual steps below."
+            echo ""
+            echo "MANUAL SUBMISSION STEPS:"
+            echo "========================"
+            echo ""
+            echo "1. Open Unity Editor (2021.3+)"
+            echo ""
+            echo "2. Install Asset Store Tools:"
+            echo "   Window > Package Manager > + > Add package by name"
+            echo "   Enter: com.unity.asset-store-tools"
+            echo ""
+            echo "3. Open Asset Store Tools:"
+            echo "   Window > Asset Store Tools > Package Upload"
+            echo ""
+            echo "4. Log in with your Unity Publisher account"
+            echo ""
+            echo "5. Select your package draft or create a new one:"
+            echo "   - Title: Allow2 Parental Freedom SDK"
+            echo "   - Category: Tools/Integration"
+            echo "   - Price: Free"
+            echo ""
+            echo "6. Upload method — choose ONE:"
+            echo ""
+            echo "   a) Pre-built .unitypackage (recommended for CI):"
+            echo "      - Download $FILENAME from the GitHub Release"
+            echo "      - Use 'Upload from .unitypackage' option"
+            echo ""
+            echo "   b) From project folder:"
+            echo "      - Import the package into a Unity project"
+            echo "      - Select Assets/Allow2 as the upload root"
+            echo ""
+            echo "7. Fill in metadata from:"
+            echo "   packaging/asset-store/asset-store-metadata.json"
+            echo ""
+            echo "8. Upload key images (see metadata for required sizes)"
+            echo ""
+            echo "9. Submit for review"
+            echo ""
+            echo "Review typically takes 5-10 business days."
+            exit 0
+          fi
+
+          # If Unity provides an API in the future, automated submission
+          # would go here. For now, this is a placeholder.
+          echo "Asset Store token is set but automated submission API"
+          echo "is not yet implemented. Follow manual steps above."

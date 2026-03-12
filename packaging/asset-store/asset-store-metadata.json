@@ -1,0 +1,53 @@
+{
+  "title": "Allow2 Parental Freedom SDK",
+  "category": "Tools/Integration",
+  "description": "Integrate Allow2 Parental Freedom into your Unity game or app. Provides a complete SDK for device pairing, child identification, real-time permission checks with automatic polling, progressive warnings and countdowns, block screens, time and activity requests, offline support with voice code challenge-response, and developer feedback.\n\nDesigned around the Allow2 Device API lifecycle: pair once, identify the child each session, check continuously, warn progressively, block when needed, and let the child request changes.\n\nNo additional dependencies required. Pure C# implementation using UnityWebRequest.",
+  "key_features": [
+    "QR/PIN device pairing with Allow2 platform",
+    "Child identification with PIN verification",
+    "Real-time permission checking (configurable 30-60s polling)",
+    "Progressive warning system (15min, 5min, 1min, 30s, 10s, blocked)",
+    "Block screen enforcement",
+    "Request system (more time, day type change, ban lift)",
+    "Offline support with cached permissions",
+    "Voice code challenge-response for offline approvals",
+    "Bug report and feature request feedback",
+    "Event-driven architecture with C# events and UnityEvents"
+  ],
+  "key_images": {
+    "icon": "Images/icon_128x128.png (required: 128x128)",
+    "card": "Images/card_420x280.png (required: 420x280)",
+    "cover": "Images/cover_1950x1300.png (required: 1950x1300)",
+    "social": "Images/social_1200x630.png (recommended: 1200x630)",
+    "screenshots": [
+      "Images/screenshot_01.png (recommended: 1920x1080, pairing flow)",
+      "Images/screenshot_02.png (recommended: 1920x1080, child selection)",
+      "Images/screenshot_03.png (recommended: 1920x1080, warning overlay)",
+      "Images/screenshot_04.png (recommended: 1920x1080, block screen)",
+      "Images/screenshot_05.png (recommended: 1920x1080, request dialog)"
+    ]
+  },
+  "unity_versions": {
+    "minimum": "2021.3",
+    "tested": ["2021.3", "2022.3", "2023.2", "6000.0"],
+    "srp_compatibility": ["Built-in", "URP", "HDRP"]
+  },
+  "platforms": [
+    "Windows",
+    "macOS",
+    "Linux",
+    "Android",
+    "iOS",
+    "WebGL"
+  ],
+  "dependencies": [],
+  "publisher": {
+    "name": "Allow2 Pty Ltd",
+    "url": "https://developer.allow2.com",
+    "support_email": "support@allow2.com"
+  },
+  "documentation_url": "https://github.com/Allow2/allow2unity",
+  "license": "MIT",
+  "price": "FREE",
+  "submission_notes": "This is the official Allow2 Parental Freedom SDK. It communicates with the Allow2 platform API (api.allow2.com) to enforce parental freedom settings in games and apps. No native plugins or platform-specific code — pure C# using UnityWebRequest."
+}
